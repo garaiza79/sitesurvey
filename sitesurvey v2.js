@@ -1,0 +1,581 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+
+const ELEMENT_TYPES = {
+  poste:   { label: "Poste",            icon: "🪵", color: "#8B4513", fields: [
+    { key: "altura",       label: "Altura (m)",    type: "number" },
+    { key: "material",     label: "Material",      type: "select", options: ["Concreto","Madera","Metálico","Fibra de vidrio"] },
+    { key: "estado",       label: "Estado",        type: "select", options: ["Bueno","Regular","Malo","Fuera de servicio"] },
+    { key: "propietario",  label: "Propietario",   type: "select", options: ["Flō Networks","CFE","Telmex","Axtel","Otro"] },
+    { key: "num_cables",   label: "Núm. cables",   type: "number" },
+    { key: "tiene_herraje",label: "Tiene herraje", type: "boolean" },
+    { key: "folio",        label: "Folio/ID",      type: "text" },
+    { key: "notas",        label: "Notas",         type: "textarea" },
+  ]},
+  manhole: { label: "Manhole",          icon: "⬛", color: "#555", fields: [
+    { key: "tipo",        label: "Tipo",           type: "select", options: ["Registro","Cámara","Handhole","Vault"] },
+    { key: "dimensiones", label: "Dimensiones (cm)",type: "text" },
+    { key: "profundidad", label: "Profundidad (m)", type: "number" },
+    { key: "material",    label: "Material",       type: "select", options: ["Concreto","PEAD","Fibra de vidrio","Metálico"] },
+    { key: "estado",      label: "Estado",         type: "select", options: ["Bueno","Regular","Malo","Inundado"] },
+    { key: "accesible",   label: "Accesible",      type: "boolean" },
+    { key: "num_ductos",  label: "Núm. ductos",    type: "number" },
+    { key: "folio",       label: "Folio/ID",       type: "text" },
+    { key: "notas",       label: "Notas",          type: "textarea" },
+  ]},
+  ducto:   { label: "Ducto",            icon: "〰️", color: "#FF8C00", fields: [
+    { key: "diametro",    label: "Diámetro (mm)",  type: "number" },
+    { key: "material",    label: "Material",       type: "select", options: ["PVC","PEAD","Metálico","Concreto"] },
+    { key: "longitud",    label: "Longitud (m)",   type: "number" },
+    { key: "num_vias",    label: "Núm. vías",      type: "number" },
+    { key: "ocupacion",   label: "Ocupación (%)",  type: "number" },
+    { key: "instalacion", label: "Instalación",    type: "select", options: ["Aéreo","Subterráneo","Enterrado directo"] },
+    { key: "estado",      label: "Estado",         type: "select", options: ["Bueno","Regular","Malo","Obstruido"] },
+    { key: "folio",       label: "Folio/ID",       type: "text" },
+    { key: "notas",       label: "Notas",          type: "textarea" },
+  ]},
+  cierre:  { label: "Cierre de empalme",icon: "🔴", color: "#DC143C", fields: [
+    { key: "tipo",          label: "Tipo",             type: "select", options: ["Domo","Horizontal","Vertical","Inline"] },
+    { key: "capacidad",     label: "Capacidad (fibras)",type: "number" },
+    { key: "fibras_usadas", label: "Fibras usadas",    type: "number" },
+    { key: "cable_entrante",label: "Cable entrante",   type: "text" },
+    { key: "cable_saliente",label: "Cable saliente",   type: "text" },
+    { key: "ubicacion",     label: "Ubicación",        type: "select", options: ["Aéreo en poste","Subterráneo","En pared","En rack"] },
+    { key: "estado",        label: "Estado",           type: "select", options: ["Bueno","Regular","Malo","Abierto"] },
+    { key: "folio",         label: "Folio/ID",         type: "text" },
+    { key: "notas",         label: "Notas",            type: "textarea" },
+  ]},
+  edificio:{ label: "Edificio",         icon: "🏢", color: "#4169E1", fields: [
+    { key: "nombre",              label: "Nombre",          type: "text" },
+    { key: "tipo",                label: "Tipo",            type: "select", options: ["Residencial","Comercial","Industrial","Datacenter","Oficinas","Otro"] },
+    { key: "num_pisos",           label: "Núm. pisos",      type: "number" },
+    { key: "num_unidades",        label: "Núm. unidades",   type: "number" },
+    { key: "tiene_cuarto_telecom",label: "Cuarto telecom",  type: "boolean" },
+    { key: "acceso_roof",         label: "Acceso azotea",   type: "boolean" },
+    { key: "estado",              label: "Estado",          type: "select", options: ["Conectado","Prospecto","No viable"] },
+    { key: "contacto",            label: "Contacto",        type: "text" },
+    { key: "folio",               label: "Folio/ID",        type: "text" },
+    { key: "notas",               label: "Notas",           type: "textarea" },
+  ]},
+  cable:   { label: "Cable FO",         icon: "🟡", color: "#FFD700", fields: [
+    { key: "tipo",        label: "Tipo",             type: "select", options: ["Drop","Distribution","Feeder","Backbone","Interbuilding"] },
+    { key: "num_fibras",  label: "Núm. fibras",      type: "number" },
+    { key: "categoria",   label: "Categoría",        type: "select", options: ["Monomodo G.652D","Monomodo G.657A1","Monomodo G.657A2","Multimodo OM3","Multimodo OM4"] },
+    { key: "instalacion", label: "Instalación",      type: "select", options: ["Aéreo","Subterráneo","Enterrado directo","Ducto"] },
+    { key: "longitud",    label: "Longitud (m)",     type: "number" },
+    { key: "propietario", label: "Propietario",      type: "select", options: ["Flō Networks","Axtel","Telmex","CFE","Otro"] },
+    { key: "estado",      label: "Estado",           type: "select", options: ["Activo","Reserva","Dañado","Fuera de servicio"] },
+    { key: "folio",       label: "Folio/ID",         type: "text" },
+    { key: "notas",       label: "Notas",            type: "textarea" },
+  ]},
+};
+
+const EXPORT_FORMATS = ["GeoJSON","KML","CSV","WKT"];
+
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2,5); }
+
+function toGeoJSON(elements) {
+  return { type:"FeatureCollection", name:"SiteSurvey",
+    crs:{ type:"name", properties:{ name:"urn:ogc:def:crs:OGC:1.3:CRS84" } },
+    features: elements.map(el => ({
+      type:"Feature",
+      properties:{ id:el.id, tipo:el.type, label:ELEMENT_TYPES[el.type]?.label, timestamp:el.timestamp, ...el.attrs },
+      geometry:{ type:"Point", coordinates:[el.lng, el.lat] }
+    }))
+  };
+}
+function toKML(elements) {
+  const folders = {};
+  elements.forEach(el => { if (!folders[el.type]) folders[el.type]=[]; folders[el.type].push(el); });
+  const folderXml = Object.entries(folders).map(([type,els]) => {
+    const placemarks = els.map(el => {
+      const extData = Object.entries(el.attrs||{}).map(([k,v]) => `<Data name="${k}"><value>${v}</value></Data>`).join("\n");
+      return `<Placemark><name>${ELEMENT_TYPES[type]?.label} - ${el.attrs?.folio||el.id}</name><description>${el.attrs?.notas||""}</description><TimeStamp><when>${el.timestamp}</when></TimeStamp><ExtendedData>${extData}</ExtendedData><Point><coordinates>${el.lng},${el.lat},0</coordinates></Point></Placemark>`;
+    }).join("\n");
+    return `<Folder><name>${ELEMENT_TYPES[type]?.label}</name>${placemarks}</Folder>`;
+  }).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Site Survey - Flō Networks</name>${folderXml}</Document></kml>`;
+}
+function toCSV(elements) {
+  if (!elements.length) return "";
+  const allKeys = new Set(["id","type","lat","lng","timestamp"]);
+  elements.forEach(el => Object.keys(el.attrs||{}).forEach(k => allKeys.add(k)));
+  const headers = [...allKeys];
+  const rows = elements.map(el => headers.map(h => {
+    if (["id","type","lat","lng","timestamp"].includes(h)) return el[h]??"";
+    return el.attrs?.[h]??"";
+  }).map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
+  return [headers.join(","), ...rows].join("\n");
+}
+function toWKT(elements) {
+  return elements.map(el => `POINT (${el.lng} ${el.lat}) -- ${ELEMENT_TYPES[el.type]?.label} | ${el.attrs?.folio||el.id} | ${el.timestamp}`).join("\n");
+}
+function downloadFile(content, filename, mime) {
+  const blob = new Blob([content],{type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+const inputStyle = { width:"100%", background:"#0d1117", color:"#e2e8f0", border:"1px solid #2d3550", borderRadius:6, padding:"6px 8px", fontSize:12, boxSizing:"border-box" };
+function miniBtn(bg) { return { background:bg, border:"none", borderRadius:4, padding:"4px 7px", cursor:"pointer", fontSize:12 }; }
+
+// ─── AI Panel ────────────────────────────────────────────────────────────────
+function AIPanel({ onAddElement, lastCoords }) {
+  const [prompt, setPrompt] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  async function handleAI() {
+    if (!prompt.trim()) return;
+    setLoading(true); setError(null); setResult(null);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          model:"claude-sonnet-4-20250514", max_tokens:1000,
+          system:`Eres un asistente para captura de infraestructura de telecomunicaciones en campo. El usuario describe un elemento en lenguaje natural. Extrae el tipo y atributos. Responde SOLO en JSON válido, sin markdown, con esta estructura: {"type":"poste|manhole|ducto|cierre|edificio|cable","attrs":{...campos relevantes}}. Si no puedes determinar el tipo, usa "poste" por defecto.`,
+          messages:[{ role:"user", content:prompt }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.find(b=>b.type==="text")?.text||"";
+      const clean = text.replace(/```json|```/g,"").trim();
+      const parsed = JSON.parse(clean);
+      setResult(parsed);
+    } catch(e) { setError("No se pudo interpretar. Intenta con más detalle."); }
+    setLoading(false);
+  }
+
+  function handleConfirm() {
+    if (!result) return;
+    const lat = lastCoords?.lat ?? 28.6353;
+    const lng = lastCoords?.lng ?? -106.0889;
+    onAddElement({ type:result.type, lat, lng, attrs:result.attrs||{} });
+    setPrompt(""); setResult(null);
+  }
+
+  return (
+    <div style={{ background:"#1a1f2e", border:"1px solid #2d3550", borderRadius:8, padding:12, marginBottom:12 }}>
+      <div style={{ color:"#7c8db0", fontSize:11, fontWeight:700, letterSpacing:1, marginBottom:8 }}>✨ CAPTURA CON IA</div>
+      <textarea value={prompt} onChange={e=>setPrompt(e.target.value)}
+        placeholder='Ej: "poste de concreto 9m, CFE, estado regular, folio P-001"'
+        style={{ width:"100%", background:"#0d1117", color:"#e2e8f0", border:"1px solid #2d3550", borderRadius:6, padding:8, fontSize:12, resize:"vertical", minHeight:70, boxSizing:"border-box" }} />
+      <button onClick={handleAI} disabled={loading||!prompt.trim()}
+        style={{ marginTop:6, width:"100%", background:loading?"#2d3550":"#4f46e5", color:"#fff", border:"none", borderRadius:6, padding:"8px 0", cursor:"pointer", fontSize:13, fontWeight:600 }}>
+        {loading?"⏳ Interpretando...":"🤖 Interpretar con IA"}
+      </button>
+      {error && <div style={{ color:"#f87171", fontSize:12, marginTop:6 }}>{error}</div>}
+      {result && (
+        <div style={{ marginTop:10, background:"#0d1117", border:"1px solid #4f46e5", borderRadius:6, padding:10 }}>
+          <div style={{ color:"#a5b4fc", fontSize:12, marginBottom:6 }}>
+            📍 Tipo: <strong>{ELEMENT_TYPES[result.type]?.label}</strong>
+            {lastCoords && <span style={{ color:"#7c8db0" }}> — posición actual del mapa</span>}
+          </div>
+          <div style={{ fontSize:11, color:"#94a3b8" }}>
+            {Object.entries(result.attrs||{}).map(([k,v]) => (
+              <div key={k}><span style={{ color:"#7c8db0" }}>{k}:</span> {String(v)}</div>
+            ))}
+          </div>
+          <button onClick={handleConfirm} style={{ marginTop:8, width:"100%", background:"#059669", color:"#fff", border:"none", borderRadius:6, padding:"7px 0", cursor:"pointer", fontSize:13, fontWeight:600 }}>
+            ✅ Agregar al mapa
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Element Form ─────────────────────────────────────────────────────────────
+function ElementForm({ type, onSave, onCancel, initial={} }) {
+  const def = ELEMENT_TYPES[type];
+  const [vals, setVals] = useState(() => {
+    const v = {}; def.fields.forEach(f => v[f.key] = initial[f.key] ?? (f.type==="boolean"?false:"")); return v;
+  });
+  const set = (k,v) => setVals(p=>({...p,[k]:v}));
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+        <span style={{ fontSize:20 }}>{def.icon}</span>
+        <span style={{ color:"#e2e8f0", fontWeight:700, fontSize:15 }}>{def.label}</span>
+      </div>
+      <div style={{ maxHeight:320, overflowY:"auto", paddingRight:4 }}>
+        {def.fields.map(f => (
+          <div key={f.key} style={{ marginBottom:8 }}>
+            <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:3 }}>{f.label}</label>
+            {f.type==="text"     && <input value={vals[f.key]} onChange={e=>set(f.key,e.target.value)} style={inputStyle} />}
+            {f.type==="number"   && <input type="number" value={vals[f.key]} onChange={e=>set(f.key,e.target.value)} style={inputStyle} />}
+            {f.type==="textarea" && <textarea value={vals[f.key]} onChange={e=>set(f.key,e.target.value)} style={{...inputStyle,minHeight:60,resize:"vertical"}} />}
+            {f.type==="select"   && (
+              <select value={vals[f.key]} onChange={e=>set(f.key,e.target.value)} style={inputStyle}>
+                <option value="">-- Seleccionar --</option>
+                {f.options.map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
+            )}
+            {f.type==="boolean"  && (
+              <label style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer" }}>
+                <input type="checkbox" checked={!!vals[f.key]} onChange={e=>set(f.key,e.target.checked)} />
+                <span style={{ color:"#e2e8f0", fontSize:13 }}>{vals[f.key]?"Sí":"No"}</span>
+              </label>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"flex", gap:8, marginTop:12 }}>
+        <button onClick={()=>onSave(vals)} style={{ flex:1, background:"#059669", color:"#fff", border:"none", borderRadius:6, padding:"8px 0", cursor:"pointer", fontWeight:600 }}>💾 Guardar</button>
+        <button onClick={onCancel}         style={{ flex:1, background:"#374151", color:"#e2e8f0", border:"none", borderRadius:6, padding:"8px 0", cursor:"pointer" }}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Map ─────────────────────────────────────────────────────────────────────
+function MapView({ elements, onMapClick, selectedId, onSelectElement, visibleTypes, userPos, pendingCoords }) {
+  const mapRef      = useRef(null);
+  const leafletMap  = useRef(null);
+  const markersRef  = useRef({});
+  const userMarker  = useRef(null);   // GPS marker
+  const pinMarker   = useRef(null);   // temporary click PIN
+  const initialized = useRef(false);
+
+  // ── Init map once ──
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+    document.head.appendChild(link);
+
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    script.onload = () => {
+      const L = window.L;
+      const map = L.map(mapRef.current, { zoomControl: true }).setView([28.6353, -106.0889], 14);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:"© OpenStreetMap contributors", maxZoom:19
+      }).addTo(map);
+      map.on("click", e => onMapClick(e.latlng));
+      leafletMap.current = map;
+    };
+    document.head.appendChild(script);
+  }, []);
+
+  // ── GPS user marker ──
+  useEffect(() => {
+    const L = window.L;
+    if (!L || !leafletMap.current || !userPos) return;
+    const map = leafletMap.current;
+    const icon = L.divIcon({
+      html:`<div style="width:18px;height:18px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,0.3)"></div>`,
+      className:"", iconSize:[18,18], iconAnchor:[9,9]
+    });
+    if (userMarker.current) {
+      userMarker.current.setLatLng([userPos.lat, userPos.lng]);
+    } else {
+      userMarker.current = L.marker([userPos.lat, userPos.lng], { icon, zIndexOffset:1000 })
+        .addTo(map)
+        .bindPopup("📍 Tu ubicación GPS");
+    }
+    // Pan to user on first fix
+    if (!userMarker.current._hasPanned) {
+      map.setView([userPos.lat, userPos.lng], 17);
+      userMarker.current._hasPanned = true;
+    }
+  }, [userPos]);
+
+  // ── Temporary PIN for pending click ──
+  useEffect(() => {
+    const L = window.L;
+    if (!L || !leafletMap.current) return;
+    // Remove old pin
+    if (pinMarker.current) { pinMarker.current.remove(); pinMarker.current = null; }
+    if (!pendingCoords) return;
+    const icon = L.divIcon({
+      html:`<div style="display:flex;flex-direction:column;align-items:center">
+        <div style="width:22px;height:22px;background:#facc15;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.5);animation:pulse 1s infinite"></div>
+        <div style="width:2px;height:12px;background:#facc15;margin-top:-2px"></div>
+      </div>`,
+      className:"", iconSize:[22,34], iconAnchor:[11,34]
+    });
+    pinMarker.current = L.marker([pendingCoords.lat, pendingCoords.lng], { icon, zIndexOffset:900 })
+      .addTo(leafletMap.current)
+      .bindPopup(`📌 ${pendingCoords.lat.toFixed(6)}, ${pendingCoords.lng.toFixed(6)}`)
+      .openPopup();
+  }, [pendingCoords]);
+
+  // ── Element markers ──
+  useEffect(() => {
+    const L = window.L;
+    if (!L || !leafletMap.current) return;
+    Object.values(markersRef.current).forEach(m => m.remove());
+    markersRef.current = {};
+    elements.forEach(el => {
+      if (!visibleTypes.includes(el.type)) return;
+      const def = ELEMENT_TYPES[el.type];
+      const isSel = el.id === selectedId;
+      const size = isSel ? 30 : 24;
+      const icon = L.divIcon({
+        html:`<div style="background:${def.color};width:${size}px;height:${size}px;border-radius:50%;border:${isSel?"3px solid #fff":"2px solid rgba(255,255,255,0.5)"};display:flex;align-items:center;justify-content:center;font-size:${isSel?15:12}px;box-shadow:0 2px 8px rgba(0,0,0,0.6);transition:all .2s">${def.icon}</div>`,
+        className:"", iconSize:[size,size], iconAnchor:[size/2,size/2]
+      });
+      const m = L.marker([el.lat,el.lng],{icon})
+        .addTo(leafletMap.current)
+        .bindPopup(`<b>${def.label}</b><br/>${el.attrs?.folio||el.id}<br/><small>${el.lat.toFixed(6)}, ${el.lng.toFixed(6)}</small>`);
+      m.on("click", () => onSelectElement(el.id));
+      markersRef.current[el.id] = m;
+    });
+  }, [elements, selectedId, visibleTypes]);
+
+  return <div ref={mapRef} style={{ width:"100%", height:"100%" }} />;
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [elements,     setElements]     = useState([]);
+  const [pendingCoords,setPendingCoords]= useState(null);
+  const [lastCoords,   setLastCoords]   = useState(null);
+  const [addingType,   setAddingType]   = useState(null);
+  const [selectedId,   setSelectedId]   = useState(null);
+  const [editingId,    setEditingId]    = useState(null);
+  const [visibleTypes, setVisibleTypes] = useState(Object.keys(ELEMENT_TYPES));
+  const [tab,          setTab]          = useState("map");
+  const [exportFmt,    setExportFmt]    = useState("GeoJSON");
+  const [searchQ,      setSearchQ]      = useState("");
+  const [gpsActive,    setGpsActive]    = useState(false);
+  const [userPos,      setUserPos]      = useState(null);
+  const [gpsError,     setGpsError]     = useState(null);
+  const watchRef = useRef(null);
+
+  const handleMapClick = useCallback((latlng) => {
+    setPendingCoords(latlng);
+    setLastCoords(latlng);
+    setAddingType(null); // reset type selection on new click
+  }, []);
+
+  function addElement(type, coords, attrs) {
+    const el = { id:generateId(), type, lat:coords.lat, lng:coords.lng, attrs, timestamp:new Date().toISOString() };
+    setElements(p=>[...p,el]);
+    setPendingCoords(null);
+    setAddingType(null);
+    setSelectedId(el.id);
+  }
+  function deleteElement(id) { setElements(p=>p.filter(e=>e.id!==id)); setSelectedId(null); }
+  function updateElement(id,attrs) { setElements(p=>p.map(e=>e.id===id?{...e,attrs}:e)); setEditingId(null); }
+  function handleAIAdd({ type,lat,lng,attrs }) {
+    const el = { id:generateId(), type, lat, lng, attrs, timestamp:new Date().toISOString() };
+    setElements(p=>[...p,el]); setSelectedId(el.id);
+  }
+
+  function toggleGPS() {
+    if (gpsActive) {
+      if (watchRef.current) navigator.geolocation.clearWatch(watchRef.current);
+      setGpsActive(false); setUserPos(null); setGpsError(null);
+    } else {
+      setGpsError(null);
+      if (!navigator.geolocation) { setGpsError("GPS no disponible en este dispositivo."); return; }
+      watchRef.current = navigator.geolocation.watchPosition(
+        pos => {
+          const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+          setUserPos(p);
+          setLastCoords(p);
+          setGpsError(null);
+        },
+        err => {
+          const msgs = { 1:"Permiso denegado. Activa el GPS en tu navegador.", 2:"Señal GPS no disponible.", 3:"Tiempo de espera agotado." };
+          setGpsError(msgs[err.code] || "Error de GPS.");
+        },
+        { enableHighAccuracy:true, maximumAge:3000, timeout:15000 }
+      );
+      setGpsActive(true);
+    }
+  }
+
+  function handleExport() {
+    const ts = new Date().toISOString().slice(0,10);
+    if (exportFmt==="GeoJSON") downloadFile(JSON.stringify(toGeoJSON(elements),null,2), `survey_${ts}.geojson`, "application/geo+json");
+    if (exportFmt==="KML")     downloadFile(toKML(elements),  `survey_${ts}.kml`, "application/vnd.google-earth.kml+xml");
+    if (exportFmt==="CSV")     downloadFile(toCSV(elements),  `survey_${ts}.csv`, "text/csv");
+    if (exportFmt==="WKT")     downloadFile(toWKT(elements),  `survey_${ts}.txt`, "text/plain");
+  }
+
+  const selected = elements.find(e=>e.id===selectedId);
+  const editing  = elements.find(e=>e.id===editingId);
+  const filtered = elements.filter(e =>
+    !searchQ ||
+    Object.values(e.attrs||{}).some(v=>String(v).toLowerCase().includes(searchQ.toLowerCase())) ||
+    e.type.includes(searchQ.toLowerCase())
+  );
+  const counts = Object.fromEntries(Object.keys(ELEMENT_TYPES).map(t=>[t,elements.filter(e=>e.type===t).length]));
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:"#0d1117", color:"#e2e8f0", fontFamily:"'Inter',sans-serif", overflow:"hidden" }}>
+
+      {/* ── TOP HEADER (mobile-friendly) ── */}
+      <div style={{ background:"#111827", borderBottom:"1px solid #1f2937", padding:"10px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+        <div>
+          <div style={{ fontSize:14, fontWeight:800, color:"#60a5fa" }}>📡 Flō Site Survey</div>
+          <div style={{ fontSize:10, color:"#4b5563" }}>{elements.length} elementos capturados</div>
+        </div>
+        <div style={{ display:"flex", gap:6 }}>
+          <button onClick={toggleGPS} style={{ background:gpsActive?"#065f46":"#1f2937", color:gpsActive?"#34d399":"#9ca3af", border:`1px solid ${gpsActive?"#059669":"#374151"}`, borderRadius:6, padding:"6px 10px", cursor:"pointer", fontSize:12, fontWeight:600 }}>
+            {gpsActive?"🟢 GPS":"📍 GPS"}
+          </button>
+        </div>
+      </div>
+      {gpsError && <div style={{ background:"#7f1d1d", color:"#fca5a5", fontSize:11, padding:"6px 14px", flexShrink:0 }}>⚠️ {gpsError}</div>}
+      {userPos   && <div style={{ background:"#064e3b", color:"#6ee7b7", fontSize:10, padding:"4px 14px", flexShrink:0 }}>📍 {userPos.lat.toFixed(6)}, {userPos.lng.toFixed(6)} · ±{Math.round(userPos.acc)}m</div>}
+
+      {/* ── MAIN AREA ── */}
+      <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+
+        {/* ── LEFT PANEL ── */}
+        <div style={{ width:290, minWidth:290, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1f2937", overflow:"hidden" }}>
+
+          {/* Tabs */}
+          <div style={{ display:"flex", borderBottom:"1px solid #1f2937", flexShrink:0 }}>
+            {[["map","🗺️ Mapa"],["list","📋 Lista"],["export","📤 Export"]].map(([k,l])=>(
+              <button key={k} onClick={()=>setTab(k)} style={{ flex:1, padding:"9px 0", background:tab===k?"#1f2937":"transparent", color:tab===k?"#60a5fa":"#6b7280", border:"none", cursor:"pointer", fontSize:11, fontWeight:600 }}>{l}</button>
+            ))}
+          </div>
+
+          <div style={{ flex:1, overflowY:"auto", padding:12 }}>
+
+            {/* MAP TAB */}
+            {tab==="map" && <>
+              <AIPanel onAddElement={handleAIAdd} lastCoords={lastCoords} />
+
+              {pendingCoords ? (
+                <div>
+                  <div style={{ color:"#a3e635", fontSize:12, marginBottom:8, background:"#1a2e05", borderRadius:6, padding:"6px 10px" }}>
+                    📌 {pendingCoords.lat.toFixed(6)}, {pendingCoords.lng.toFixed(6)}
+                  </div>
+                  <div style={{ color:"#94a3b8", fontSize:11, marginBottom:8 }}>Selecciona el tipo de elemento:</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                    {Object.entries(ELEMENT_TYPES).map(([k,v])=>(
+                      <button key={k} onClick={()=>setAddingType(k)} style={{ background:addingType===k?"#1d4ed8":"#1f2937", border:`1px solid ${addingType===k?"#3b82f6":"#374151"}`, borderRadius:6, padding:"8px 6px", cursor:"pointer", color:"#e2e8f0", fontSize:11, display:"flex", alignItems:"center", gap:5 }}>
+                        <span>{v.icon}</span><span>{v.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={()=>{setPendingCoords(null);setAddingType(null);}} style={{ width:"100%", marginTop:8, background:"#1f2937", color:"#6b7280", border:"1px solid #374151", borderRadius:6, padding:"6px 0", cursor:"pointer", fontSize:12 }}>✕ Cancelar</button>
+                </div>
+              ) : (
+                <div style={{ color:"#374151", fontSize:12, textAlign:"center", padding:"20px 0", border:"1px dashed #1f2937", borderRadius:8 }}>
+                  👆 Toca el mapa para agregar un elemento
+                </div>
+              )}
+
+              {/* Form */}
+              {addingType && pendingCoords && (
+                <div style={{ marginTop:12, background:"#0d1117", border:"1px solid #374151", borderRadius:8, padding:12 }}>
+                  <ElementForm type={addingType} onSave={attrs=>addElement(addingType,pendingCoords,attrs)} onCancel={()=>{setAddingType(null);setPendingCoords(null);}} />
+                </div>
+              )}
+
+              {/* Selected */}
+              {selected && !addingType && (
+                <div style={{ marginTop:12, background:"#0d1117", border:"1px solid #374151", borderRadius:8, padding:12 }}>
+                  {editingId===selected.id ? (
+                    <ElementForm type={selected.type} initial={selected.attrs} onSave={attrs=>updateElement(selected.id,attrs)} onCancel={()=>setEditingId(null)} />
+                  ) : (
+                    <>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                        <span style={{ fontWeight:700, color:"#e2e8f0" }}>{ELEMENT_TYPES[selected.type]?.icon} {ELEMENT_TYPES[selected.type]?.label}</span>
+                        <div style={{ display:"flex", gap:4 }}>
+                          <button onClick={()=>setEditingId(selected.id)} style={miniBtn("#1d4ed8")}>✏️</button>
+                          <button onClick={()=>deleteElement(selected.id)}  style={miniBtn("#991b1b")}>🗑️</button>
+                        </div>
+                      </div>
+                      <div style={{ fontSize:11, color:"#7c8db0", marginBottom:4 }}>{selected.lat.toFixed(6)}, {selected.lng.toFixed(6)}</div>
+                      {Object.entries(selected.attrs||{}).filter(([,v])=>v!==""&&v!==false).map(([k,v])=>(
+                        <div key={k} style={{ fontSize:12, color:"#94a3b8", marginBottom:2 }}>
+                          <span style={{ color:"#4b5563" }}>{k}:</span> {String(v)}
+                        </div>
+                      ))}
+                      <div style={{ fontSize:10, color:"#374151", marginTop:6 }}>{selected.timestamp}</div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Layer toggles */}
+              <div style={{ marginTop:16 }}>
+                <div style={{ color:"#4b5563", fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:8 }}>CAPAS</div>
+                {Object.entries(ELEMENT_TYPES).map(([k,v])=>(
+                  <div key={k} onClick={()=>setVisibleTypes(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
+                    style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 6px", borderRadius:6, cursor:"pointer", background:visibleTypes.includes(k)?"#1f2937":"transparent", marginBottom:3 }}>
+                    <span style={{ width:12, height:12, borderRadius:"50%", background:visibleTypes.includes(k)?v.color:"#374151", display:"inline-block" }} />
+                    <span style={{ fontSize:12, color:visibleTypes.includes(k)?"#e2e8f0":"#4b5563" }}>{v.label}</span>
+                    <span style={{ marginLeft:"auto", fontSize:11, color:"#4b5563" }}>{counts[k]}</span>
+                  </div>
+                ))}
+              </div>
+            </>}
+
+            {/* LIST TAB */}
+            {tab==="list" && <>
+              <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="🔍 Buscar folio, notas..." style={{...inputStyle,marginBottom:10}} />
+              <div style={{ color:"#4b5563", fontSize:11, marginBottom:8 }}>{filtered.length} elemento(s)</div>
+              {filtered.length===0 && <div style={{ color:"#374151", fontSize:12, textAlign:"center", padding:20 }}>Sin elementos capturados</div>}
+              {filtered.map(el=>(
+                <div key={el.id} onClick={()=>{setSelectedId(el.id);setTab("map");}}
+                  style={{ background:"#0d1117", border:`1px solid ${el.id===selectedId?"#4f46e5":"#1f2937"}`, borderRadius:6, padding:"8px 10px", marginBottom:6, cursor:"pointer" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between" }}>
+                    <span style={{ fontSize:13, fontWeight:600 }}>{ELEMENT_TYPES[el.type]?.icon} {ELEMENT_TYPES[el.type]?.label}</span>
+                    <span style={{ fontSize:10, color:"#4b5563" }}>{el.attrs?.folio||el.id.slice(0,8)}</span>
+                  </div>
+                  <div style={{ fontSize:11, color:"#4b5563", marginTop:2 }}>{el.lat.toFixed(5)}, {el.lng.toFixed(5)}</div>
+                  {el.attrs?.estado && <span style={{ fontSize:10, background:"#1f2937", borderRadius:4, padding:"2px 6px", color:"#94a3b8", marginTop:4, display:"inline-block" }}>{el.attrs.estado}</span>}
+                </div>
+              ))}
+            </>}
+
+            {/* EXPORT TAB */}
+            {tab==="export" && <>
+              <div style={{ background:"#0d1117", border:"1px solid #1f2937", borderRadius:8, padding:12, marginBottom:12 }}>
+                <div style={{ color:"#7c8db0", fontSize:11, fontWeight:700, marginBottom:8 }}>RESUMEN</div>
+                {Object.entries(ELEMENT_TYPES).map(([k,v])=>counts[k]>0&&(
+                  <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"#94a3b8", marginBottom:4 }}>
+                    <span>{v.icon} {v.label}</span>
+                    <span style={{ color:"#60a5fa", fontWeight:700 }}>{counts[k]}</span>
+                  </div>
+                ))}
+                {elements.length===0&&<div style={{ color:"#374151", fontSize:12 }}>Sin elementos aún</div>}
+              </div>
+
+              <div style={{ color:"#4b5563", fontSize:11, marginBottom:8, fontWeight:700, letterSpacing:1 }}>FORMATO</div>
+              {EXPORT_FORMATS.map(f=>(
+                <div key={f} onClick={()=>setExportFmt(f)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:6, cursor:"pointer", background:exportFmt===f?"#1f2937":"transparent", marginBottom:4, border:`1px solid ${exportFmt===f?"#4f46e5":"transparent"}` }}>
+                  <span style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${exportFmt===f?"#4f46e5":"#374151"}`, background:exportFmt===f?"#4f46e5":"transparent" }} />
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600, color:exportFmt===f?"#a5b4fc":"#e2e8f0" }}>{f}</div>
+                    <div style={{ fontSize:10, color:"#4b5563" }}>{{GeoJSON:"QGIS · ArcGIS · PostGIS",KML:"Google Earth · Maps",CSV:"Excel · ClicData",WKT:"PostGIS · OGR · SQL"}[f]}</div>
+                  </div>
+                </div>
+              ))}
+              <button onClick={handleExport} disabled={elements.length===0}
+                style={{ width:"100%", marginTop:12, background:elements.length?"#4f46e5":"#1f2937", color:elements.length?"#fff":"#4b5563", border:"none", borderRadius:8, padding:"10px 0", cursor:elements.length?"pointer":"default", fontSize:14, fontWeight:700 }}>
+                ⬇️ Descargar {exportFmt}
+              </button>
+            </>}
+          </div>
+        </div>
+
+        {/* ── MAP ── */}
+        <div style={{ flex:1, position:"relative" }}>
+          <MapView
+            elements={elements}
+            onMapClick={handleMapClick}
+            selectedId={selectedId}
+            onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
+            visibleTypes={visibleTypes}
+            userPos={userPos}
+            pendingCoords={pendingCoords}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
