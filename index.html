@@ -33,63 +33,67 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ─── Element Type Definitions ─────────────────────────────────────────────────
 const ELEMENT_TYPES = {
   poste: {
     label: "Poste", icon: "🪵", color: "#F97316", prefix: "P",
     fields: [
-      { key: "dueno",            label: "Dueño del poste",      type: "select",  options: ["CFE","ATC","Flo Networks","Maxcom","XC Networks","Municipio","Parque Industrial","Privado"] },
-      { key: "usado_por",        label: "Usado por",            type: "select",  options: ["ATC","Flo Networks","Maxcom","XC Networks","Otro"] },
-      { key: "altura",           label: "Altura (m)",           type: "select",  options: ["6","7","8","9","10","11","12","13","14","15"] },
-      { key: "material",         label: "Material",             type: "select",  options: ["Concreto","Madera","Metal"] },
-      { key: "id_cfe",           label: "ID CFE",               type: "text" },
-      { key: "tipo_construccion",label: "Tipo de construcción", type: "select",  options: ["Poste nuevo","Poste ya utilizado por Infra","Poste sin utilizar por nuestra Infra"] },
-      { key: "condicion",        label: "Condición",            type: "select",  options: ["Existente","Nuevo a Instalar"] },
-      { key: "notas",            label: "Notas",                type: "textarea" },
+      { key: "dueno",             label: "Dueño del poste",      type: "select",  options: ["CFE","ATC","Flo Networks","Maxcom","XC Networks","Municipio","Parque Industrial","Privado"] },
+      { key: "usado_por",         label: "Usado por",            type: "select",  options: ["ATC","Flo Networks","Maxcom","XC Networks","Otro"] },
+      { key: "altura",            label: "Altura (m)",           type: "select",  options: ["6","7","8","9","10","11","12","13","14","15"] },
+      { key: "material",          label: "Material",             type: "select",  options: ["Concreto","Madera","Metal"] },
+      { key: "id_cfe",            label: "ID CFE",               type: "text" },
+      { key: "tipo_construccion", label: "Tipo de construcción", type: "select",  options: ["Poste nuevo","Poste ya utilizado por Infra","Poste sin utilizar por nuestra Infra"] },
+      { key: "condicion",         label: "Condición",            type: "select",  options: ["Existente","Nuevo a Instalar"] },
+      { key: "notas",             label: "Notas",                type: "textarea" },
     ]
   },
   handhole: {
     label: "Handhole", icon: "⬛", color: "#64748B", prefix: "HH",
     fields: [
-      { key: "dueno",       label: "Dueño del handhole", type: "select", options: ["CFE","ATC","Flo Networks","Maxcom","XC Networks","Municipio","Parque Industrial","Privado"] },
-      { key: "usado_por",   label: "Usado por",          type: "select", options: ["ATC","Flo Networks","Maxcom","XC Networks","Otro"] },
-      { key: "dimensiones", label: "Dimensiones",        type: "select", options: ["24x24x24","24x36x24","48x48x48","Otro"] },
-      { key: "instalado_en",label: "Instalado en",       type: "select", options: ["Banqueta","Arroyo","Propiedad Privada"] },
-      { key: "condicion",   label: "Condición",          type: "select", options: ["Existente","Nuevo a Instalar"] },
-      { key: "notas",       label: "Notas",              type: "textarea" },
+      { key: "dueno",        label: "Dueño del handhole", type: "select", options: ["CFE","ATC","Flo Networks","Maxcom","XC Networks","Municipio","Parque Industrial","Privado"] },
+      { key: "usado_por",    label: "Usado por",          type: "select", options: ["ATC","Flo Networks","Maxcom","XC Networks","Otro"] },
+      { key: "dimensiones",  label: "Dimensiones",        type: "select", options: ["24x24x24","24x36x24","48x48x48","Otro"] },
+      { key: "instalado_en", label: "Instalado en",       type: "select", options: ["Banqueta","Arroyo","Propiedad Privada"] },
+      { key: "condicion",    label: "Condición",          type: "select", options: ["Existente","Nuevo a Instalar"] },
+      { key: "notas",        label: "Notas",              type: "textarea" },
     ]
   },
   cierre: {
     label: "Cierre de Empalme", icon: "🔴", color: "#EF4444", prefix: "CE",
     fields: [
-      { key: "estado",    label: "Cierre nuevo o existente", type: "select", options: ["Nuevo","Existente"] },
-      { key: "condicion", label: "Condición",                type: "select", options: ["Existente","Nuevo a Instalar"] },
-      { key: "notas",     label: "Notas",                    type: "textarea" },
+      { key: "estado",    label: "Nuevo o Existente", type: "select",  options: ["Nuevo","Existente"] },
+      { key: "condicion", label: "Condición",         type: "select",  options: ["Existente","Nuevo a Instalar"] },
+      { key: "notas",     label: "Notas",             type: "textarea" },
     ]
   },
   edificio: {
     label: "Edificio", icon: "🏢", color: "#3B82F6", prefix: "BLD",
     fields: [
-      { key: "nombre",          label: "Nombre de Edificio", type: "text" },
-      { key: "direccion",       label: "Dirección Completa", type: "textarea" },
-      { key: "piso_cliente",    label: "Piso del cliente",   type: "text" },
-      { key: "suite_cliente",   label: "Suite del cliente",  type: "text" },
-      { key: "datos_adicionales",label: "Datos adicionales", type: "textarea" },
-      { key: "condicion",       label: "Condición",          type: "select", options: ["Existente","Nuevo a Instalar"] },
+      { key: "nombre_edificio",   label: "Nombre de Edificio", type: "text" },
+      { key: "direccion",         label: "Dirección Completa", type: "textarea" },
+      { key: "piso_cliente",      label: "Piso del cliente",   type: "text" },
+      { key: "suite_cliente",     label: "Suite del cliente",  type: "text" },
+      { key: "datos_adicionales", label: "Datos adicionales",  type: "textarea" },
+      { key: "condicion",         label: "Condición",          type: "select", options: ["Existente","Nuevo a Instalar"] },
     ]
   },
 };
 
 const CONNECTION_TYPES = ["Aerial Route", "ADSS", "Ducto"];
+const EXPORT_FORMATS   = ["GeoJSON", "KML", "CSV"];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 5); }
 
 function inferConnectionType(typeA, typeB) {
   const pair = [typeA, typeB].sort().join("-");
-  if (pair === "handhole-handhole") return "Ducto";
-  if (pair === "poste-poste")       return "Aerial Route";
-  if (pair === "handhole-poste")    return "Ducto";
-  if (pair === "edificio-handhole") return "Ducto";
+  if (pair === "handhole-handhole")  return "Ducto";
+  if (pair === "poste-poste")        return "Aerial Route";
+  if (pair === "handhole-poste")     return "Ducto";
+  if (pair === "edificio-handhole")  return "Ducto";
   return "Aerial Route";
 }
 
@@ -104,8 +108,8 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
 function autoName(project, type, elements) {
   const { prefix } = ELEMENT_TYPES[type];
   const same = elements.filter(e => e.type === type);
-  const num = String(same.length + 1).padStart(3, "0");
-  return `${project}-${prefix}${num}`;
+  const num  = String(same.length + 1).padStart(3, "0");
+  return project + "-" + prefix + num;
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
@@ -122,15 +126,15 @@ function toGeoJSON(elements) {
 }
 function toKML(elements) {
   const placemarks = elements.map(el => {
-    const extData = Object.entries(el.attrs || {}).map(([k, v]) => `<Data name="${k}"><value>${v}</value></Data>`).join("");
-    return `<Placemark><name>${el.nombre}</name><description>${el.attrs?.notas || ""}</description><ExtendedData>${extData}</ExtendedData><Point><coordinates>${el.lng},${el.lat},0</coordinates></Point></Placemark>`;
+    const ext = Object.entries(el.attrs||{}).map(([k,v]) => `<Data name="${k}"><value>${v}</value></Data>`).join("");
+    return `<Placemark><name>${el.nombre}</name><description>${el.attrs?.notas||""}</description><ExtendedData>${ext}</ExtendedData><Point><coordinates>${el.lng},${el.lat},0</coordinates></Point></Placemark>`;
   }).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Site Survey - Flō Networks</name>${placemarks}</Document></kml>`;
 }
 function toCSV(elements, connections) {
   if (!elements.length) return "";
-  const allKeys = new Set(["nombre", "type", "lat", "lng", "timestamp"]);
-  elements.forEach(el => Object.keys(el.attrs || {}).forEach(k => allKeys.add(k)));
+  const allKeys = new Set(["nombre","type","lat","lng","timestamp"]);
+  elements.forEach(el => Object.keys(el.attrs||{}).forEach(k => allKeys.add(k)));
   const headers = [...allKeys];
   const rows = elements.map(el => headers.map(h => {
     if (h === "nombre") return el.nombre ?? "";
@@ -139,32 +143,27 @@ function toCSV(elements, connections) {
   }).map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
   let csv = [headers.join(","), ...rows].join("\n");
   if (connections.length) {
-    csv += "\n\nCONEXIONES\nelementoA,elementoB,tipo_construccion,distancia_metros,fecha\n";
+    csv += "\n\nCONEXIONES\nelementoA,elementoB,tipo_construccion,infraestructura,distancia_metros,fecha,automatica\n";
     csv += connections.map(c => {
       const elA = elements.find(e => e.id === c.a);
       const elB = elements.find(e => e.id === c.b);
-      return `"${elA?.nombre||c.a}","${elB?.nombre||c.b}","${c.tipo}","${c.distancia?.toFixed(2)||""}","${c.timestamp}"`;
+      return `"${elA?.nombre||c.a}","${elB?.nombre||c.b}","${c.tipo}","${c.infraestructura||""}","${c.distancia?.toFixed(2)||""}","${c.timestamp}","${c.automatica?"Sí":"No"}"`;
     }).join("\n");
   }
   return csv;
 }
 function downloadFile(content, filename, mime) {
   const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const inputStyle = {
-  width: "100%", background: "#0d1117", color: "#e2e8f0",
-  border: "1px solid #2d3550", borderRadius: 6, padding: "6px 8px",
-  fontSize: 12, boxSizing: "border-box"
-};
-const btnStyle = (bg, fg = "#fff") => ({
-  background: bg, color: fg, border: "none", borderRadius: 6,
-  padding: "7px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600
-});
+// ─── Shared styles ────────────────────────────────────────────────────────────
+const inputStyle = { width:"100%", background:"#0d1117", color:"#e2e8f0", border:"1px solid #2d3550", borderRadius:6, padding:"6px 8px", fontSize:12, boxSizing:"border-box" };
+const miniBtn    = (bg) => ({ background:bg, border:"none", borderRadius:4, padding:"4px 8px", cursor:"pointer", fontSize:12, color:"#fff" });
+const btnStyle   = (bg, fg="#fff") => ({ background:bg, color:fg, border:"none", borderRadius:6, padding:"7px 12px", cursor:"pointer", fontSize:12, fontWeight:600 });
 
 // ─── Project Modal ────────────────────────────────────────────────────────────
 function ProjectModal({ onConfirm }) {
@@ -186,7 +185,7 @@ function ProjectModal({ onConfirm }) {
         <button
           onClick={() => name.trim() && onConfirm(name.trim())}
           disabled={!name.trim()}
-          style={{ ...btnStyle(name.trim() ? "#4f46e5" : "#1f2937"), width:"100%", padding:"10px 0", fontSize:14 }}
+          style={{ width:"100%", padding:"10px 0", fontSize:14, ...btnStyle(name.trim() ? "#4f46e5" : "#1f2937") }}
         >
           Comenzar →
         </button>
@@ -195,21 +194,63 @@ function ProjectModal({ onConfirm }) {
   );
 }
 
+// ─── GPS Modals ───────────────────────────────────────────────────────────────
+function GPSPermissionModal({ onConfirm, onCancel }) {
+  const isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"#1a1f2e", border:"1px solid #3b82f6", borderRadius:16, padding:24, maxWidth:340, width:"100%" }}>
+        <div style={{ textAlign:"center", marginBottom:16 }}>
+          <div style={{ fontSize:44, marginBottom:8 }}>📍</div>
+          <div style={{ fontSize:17, fontWeight:800, color:"#e2e8f0", marginBottom:6 }}>Permiso de Ubicación</div>
+          <div style={{ fontSize:13, color:"#94a3b8", lineHeight:1.6 }}>Necesitamos acceso al GPS para capturar tu ubicación real.</div>
+        </div>
+        {isIOS     && <div style={{ background:"#1e3a5f", border:"1px solid #3b82f6", borderRadius:8, padding:12, marginBottom:16, fontSize:12, color:"#93c5fd", lineHeight:1.7 }}><strong>📱 iPhone/iPad:</strong><br/>Toca <strong>"Permitir"</strong> cuando aparezca el diálogo.<br/><em>Si no aparece: Ajustes → Safari → Ubicación → Permitir</em></div>}
+        {isAndroid && <div style={{ background:"#1a3320", border:"1px solid #22c55e", borderRadius:8, padding:12, marginBottom:16, fontSize:12, color:"#86efac", lineHeight:1.7 }}><strong>🤖 Android:</strong><br/>Toca <strong>"Permitir"</strong> cuando aparezca el diálogo.</div>}
+        {!isIOS && !isAndroid && <div style={{ background:"#1e2535", border:"1px solid #4b5563", borderRadius:8, padding:12, marginBottom:16, fontSize:12, color:"#94a3b8" }}>Acepta el permiso de ubicación en el navegador.</div>}
+        <div style={{ display:"flex", gap:10 }}>
+          <button onClick={onCancel}  style={{ flex:1, background:"#374151", color:"#e2e8f0", border:"none", borderRadius:8, padding:"10px 0", cursor:"pointer", fontSize:13 }}>Cancelar</button>
+          <button onClick={onConfirm} style={{ flex:2, background:"#3b82f6", color:"#fff",    border:"none", borderRadius:8, padding:"10px 0", cursor:"pointer", fontSize:13, fontWeight:700 }}>🛰️ Activar GPS</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function GPSDeniedModal({ onClose }) {
+  const isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"#1a1f2e", border:"1px solid #ef4444", borderRadius:16, padding:24, maxWidth:340, width:"100%" }}>
+        <div style={{ textAlign:"center", marginBottom:12 }}>
+          <div style={{ fontSize:44, marginBottom:6 }}>🚫</div>
+          <div style={{ fontSize:17, fontWeight:800, color:"#fca5a5", marginBottom:6 }}>GPS Bloqueado</div>
+        </div>
+        {isIOS     && <div style={{ background:"#2d1515", border:"1px solid #ef4444", borderRadius:8, padding:12, marginBottom:16, fontSize:12, color:"#fca5a5", lineHeight:1.8 }}><strong>📱 iPhone (Safari):</strong><br/>1. Ajustes → Safari → Ubicación → Permitir<br/>2. Regresa aquí e intenta de nuevo</div>}
+        {isAndroid && <div style={{ background:"#1a2d1a", border:"1px solid #22c55e", borderRadius:8, padding:12, marginBottom:16, fontSize:12, color:"#86efac", lineHeight:1.8 }}><strong>🤖 Android:</strong><br/>1. Toca 🔒 en la barra de dirección<br/>2. Permisos → Ubicación → Permitir<br/>3. Recarga la página</div>}
+        {!isIOS && !isAndroid && <div style={{ background:"#1e2535", border:"1px solid #4b5563", borderRadius:8, padding:12, marginBottom:16, fontSize:12, color:"#94a3b8", lineHeight:1.8 }}>Haz clic en 🔒 → Ubicación → Permitir → Recarga</div>}
+        <button onClick={onClose} style={{ width:"100%", background:"#374151", color:"#e2e8f0", border:"none", borderRadius:8, padding:"10px 0", cursor:"pointer", fontSize:13, fontWeight:600 }}>Entendido</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Photo Capture ────────────────────────────────────────────────────────────
-function PhotoCapture({ photos = [], onChange }) {
+function PhotoCapture({ photos, onChange }) {
   const fileRef = useRef(null);
   function handleFile(e) {
     const files = [...e.target.files];
     files.forEach(file => {
       const reader = new FileReader();
-      reader.onload = ev => onChange([...photos, { dataUrl: ev.target.result, name: file.name }]);
+      reader.onload = ev => onChange(prev => [...prev, { dataUrl: ev.target.result, name: file.name }]);
       reader.readAsDataURL(file);
     });
     e.target.value = "";
   }
-  function removePhoto(idx) { onChange(photos.filter((_, i) => i !== idx)); }
+  function removePhoto(idx) { onChange(prev => prev.filter((_, i) => i !== idx)); }
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div style={{ marginBottom:8 }}>
       <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:6 }}>📷 Fotos</label>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
         {photos.map((p, i) => (
@@ -220,7 +261,7 @@ function PhotoCapture({ photos = [], onChange }) {
         ))}
       </div>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple onChange={handleFile} style={{ display:"none" }} />
-      <button onClick={() => fileRef.current?.click()} style={{ ...btnStyle("#1f2937", "#94a3b8"), width:"100%", border:"1px dashed #374151" }}>
+      <button onClick={() => fileRef.current?.click()} style={{ width:"100%", background:"#1f2937", color:"#94a3b8", border:"1px dashed #374151", borderRadius:6, padding:"7px 0", cursor:"pointer", fontSize:12 }}>
         📷 Tomar / Adjuntar foto
       </button>
     </div>
@@ -228,8 +269,8 @@ function PhotoCapture({ photos = [], onChange }) {
 }
 
 // ─── Element Form ─────────────────────────────────────────────────────────────
-function ElementForm({ type, project, elements, onSave, onCancel, initial = {}, initialPhotos = [], initialNombre = "" }) {
-  const def = ELEMENT_TYPES[type];
+function ElementForm({ type, project, elements, onSave, onCancel, initial={}, initialPhotos=[], initialNombre="" }) {
+  const def       = ELEMENT_TYPES[type];
   const suggested = initialNombre || autoName(project, type, elements);
   const [nombre, setNombre] = useState(suggested);
   const [vals,   setVals]   = useState(() => {
@@ -242,21 +283,20 @@ function ElementForm({ type, project, elements, onSave, onCancel, initial = {}, 
 
   return (
     <div>
-      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
         <span style={{ fontSize:20 }}>{def.icon}</span>
-        <span style={{ color:"#e2e8f0", fontWeight:700, fontSize:15 }}>{def.label}</span>
+        <span style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>{def.label}</span>
       </div>
-      <div style={{ maxHeight:400, overflowY:"auto", paddingRight:4 }}>
-        {/* Nombre auto-generado pero editable */}
+      <div style={{ maxHeight:340, overflowY:"auto", paddingRight:4 }}>
         <div style={{ marginBottom:8 }}>
           <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:3 }}>Nombre (auto-generado)</label>
           <input value={nombre} onChange={e => setNombre(e.target.value)} style={{ ...inputStyle, borderColor:"#4f46e5" }} />
         </div>
         {def.fields.map(f => (
-          <div key={f.key} style={{ marginBottom:8 }}>
-            <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:3 }}>{f.label}</label>
+          <div key={f.key} style={{ marginBottom:7 }}>
+            <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:2 }}>{f.label}</label>
             {f.type === "text"     && <input value={vals[f.key]} onChange={e => set(f.key, e.target.value)} style={inputStyle} />}
-            {f.type === "textarea" && <textarea value={vals[f.key]} onChange={e => set(f.key, e.target.value)} style={{ ...inputStyle, minHeight:60, resize:"vertical" }} />}
+            {f.type === "textarea" && <textarea value={vals[f.key]} onChange={e => set(f.key, e.target.value)} style={{ ...inputStyle, minHeight:50, resize:"vertical" }} />}
             {f.type === "select"   && (
               <select value={vals[f.key]} onChange={e => set(f.key, e.target.value)} style={inputStyle}>
                 <option value="">-- Seleccionar --</option>
@@ -267,16 +307,16 @@ function ElementForm({ type, project, elements, onSave, onCancel, initial = {}, 
         ))}
         <PhotoCapture photos={photos} onChange={setPhotos} />
       </div>
-      <div style={{ display:"flex", gap:8, marginTop:12 }}>
-        <button onClick={() => onSave(nombre, vals, photos)} style={{ flex:1, ...btnStyle("#059669") }}>💾 Guardar</button>
-        <button onClick={onCancel} style={{ flex:1, ...btnStyle("#374151", "#e2e8f0") }}>Cancelar</button>
+      <div style={{ display:"flex", gap:8, marginTop:10 }}>
+        <button onClick={() => onSave(nombre, vals, photos)} style={{ flex:1, background:"#059669", color:"#fff", border:"none", borderRadius:6, padding:"8px 0", cursor:"pointer", fontWeight:600 }}>💾 Guardar</button>
+        <button onClick={onCancel} style={{ flex:1, background:"#374151", color:"#e2e8f0", border:"none", borderRadius:6, padding:"8px 0", cursor:"pointer" }}>Cancelar</button>
       </div>
     </div>
   );
 }
 
 // ─── AI Panel ────────────────────────────────────────────────────────────────
-function AIPanel({ onAddElement, lastCoords, project }) {
+function AIPanel({ onAddElement, lastCoords }) {
   const [prompt,  setPrompt]  = useState("");
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState(null);
@@ -289,52 +329,39 @@ function AIPanel({ onAddElement, lastCoords, project }) {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 1000,
-          system: `Eres un asistente para captura de infraestructura de telecomunicaciones en campo. El usuario describe un elemento en lenguaje natural. Extrae el tipo y atributos. Responde SOLO en JSON válido, sin markdown, con esta estructura: {"type":"poste|handhole|cierre|edificio","attrs":{...campos relevantes}}. Si no puedes determinar el tipo, usa "poste" por defecto.`,
+          model: "claude-sonnet-4-20250514", max_tokens: 800,
+          system: `Eres asistente para captura de infraestructura de telecomunicaciones. El usuario describe un elemento. Extrae tipo y atributos. Responde SOLO JSON válido sin markdown: {"type":"poste|handhole|cierre|edificio","attrs":{...}}. Default: "poste".`,
           messages: [{ role: "user", content: prompt }]
         })
       });
-      const data = await res.json();
-      const text = data.content?.find(b => b.type === "text")?.text || "";
+      const data  = await res.json();
+      const text  = data.content?.find(b => b.type === "text")?.text || "";
       const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-      setResult(parsed);
+      setResult(JSON.parse(clean));
     } catch(e) { setError("No se pudo interpretar. Intenta con más detalle."); }
     setLoading(false);
   }
-
   function handleConfirm() {
     if (!result) return;
-    const lat = lastCoords?.lat ?? 28.6353;
-    const lng = lastCoords?.lng ?? -106.0889;
-    onAddElement({ type: result.type, lat, lng, attrs: result.attrs || {} });
+    onAddElement({ type: result.type, lat: lastCoords?.lat ?? 28.6353, lng: lastCoords?.lng ?? -106.0889, attrs: result.attrs || {} });
     setPrompt(""); setResult(null);
   }
-
   return (
-    <div style={{ background:"#1a1f2e", border:"1px solid #2d3550", borderRadius:8, padding:12, marginBottom:12 }}>
-      <div style={{ color:"#7c8db0", fontSize:11, fontWeight:700, letterSpacing:1, marginBottom:8 }}>✨ CAPTURA CON IA</div>
+    <div style={{ background:"#1a1f2e", border:"1px solid #2d3550", borderRadius:8, padding:10, marginBottom:10 }}>
+      <div style={{ color:"#7c8db0", fontSize:11, fontWeight:700, letterSpacing:1, marginBottom:7 }}>✨ CAPTURA CON IA</div>
       <textarea value={prompt} onChange={e => setPrompt(e.target.value)}
         placeholder='Ej: "poste de concreto 9m, CFE, folio P-001"'
-        style={{ width:"100%", background:"#0d1117", color:"#e2e8f0", border:"1px solid #2d3550", borderRadius:6, padding:8, fontSize:12, resize:"vertical", minHeight:60, boxSizing:"border-box" }} />
+        style={{ width:"100%", background:"#0d1117", color:"#e2e8f0", border:"1px solid #2d3550", borderRadius:6, padding:8, fontSize:12, resize:"vertical", minHeight:55, boxSizing:"border-box" }} />
       <button onClick={handleAI} disabled={loading || !prompt.trim()}
-        style={{ marginTop:6, width:"100%", ...btnStyle(loading ? "#2d3550" : "#4f46e5"), padding:"8px 0", fontSize:13 }}>
+        style={{ marginTop:6, width:"100%", background:loading?"#2d3550":"#4f46e5", color:"#fff", border:"none", borderRadius:6, padding:"7px 0", cursor:"pointer", fontSize:13, fontWeight:600 }}>
         {loading ? "⏳ Interpretando..." : "🤖 Interpretar con IA"}
       </button>
-      {error && <div style={{ color:"#f87171", fontSize:12, marginTop:6 }}>{error}</div>}
+      {error && <div style={{ color:"#f87171", fontSize:12, marginTop:5 }}>{error}</div>}
       {result && (
-        <div style={{ marginTop:10, background:"#0d1117", border:"1px solid #4f46e5", borderRadius:6, padding:10 }}>
-          <div style={{ color:"#a5b4fc", fontSize:12, marginBottom:6 }}>
-            📍 Tipo: <strong>{ELEMENT_TYPES[result.type]?.label}</strong>
-          </div>
-          <div style={{ fontSize:11, color:"#94a3b8" }}>
-            {Object.entries(result.attrs || {}).map(([k, v]) => (
-              <div key={k}><span style={{ color:"#7c8db0" }}>{k}:</span> {String(v)}</div>
-            ))}
-          </div>
-          <button onClick={handleConfirm} style={{ marginTop:8, width:"100%", ...btnStyle("#059669"), padding:"7px 0" }}>
-            ✅ Agregar al mapa
-          </button>
+        <div style={{ marginTop:8, background:"#0d1117", border:"1px solid #4f46e5", borderRadius:6, padding:8 }}>
+          <div style={{ color:"#a5b4fc", fontSize:12, marginBottom:5 }}>📍 <strong>{ELEMENT_TYPES[result.type]?.label}</strong></div>
+          <div style={{ fontSize:11, color:"#94a3b8" }}>{Object.entries(result.attrs||{}).map(([k,v]) => <div key={k}><span style={{ color:"#7c8db0" }}>{k}:</span> {String(v)}</div>)}</div>
+          <button onClick={handleConfirm} style={{ marginTop:7, width:"100%", background:"#059669", color:"#fff", border:"none", borderRadius:6, padding:"7px 0", cursor:"pointer", fontSize:13, fontWeight:600 }}>✅ Agregar al mapa</button>
         </div>
       )}
     </div>
@@ -342,174 +369,163 @@ function AIPanel({ onAddElement, lastCoords, project }) {
 }
 
 // ─── Map View ────────────────────────────────────────────────────────────────
-function MapView({ elements, connections, onMapClick, selectedId, onSelectElement, visibleTypes, userPos, pendingCoords }) {
-  const mapRef      = useRef(null);
-  const leafletMap  = useRef(null);
-  const markersRef  = useRef({});
-  const linesRef    = useRef([]);
-  const userMarker  = useRef(null);
-  const pinMarker   = useRef(null);
-  const initialized = useRef(false);
+function MapView({ elements, connections, onMapClick, selectedId, onSelectElement, visibleTypes, userPos, pendingCoords, connectMode, connectFromId, onSelectForConnect }) {
+  const mapRef     = useRef(null);
+  const leafletMap = useRef(null);
+  const markersRef = useRef({});
+  const linesRef   = useRef([]);
+  const userMarker = useRef(null);
+  const pinMarker  = useRef(null);
+  const hasPanned  = useRef(false);
 
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
-    document.head.appendChild(link);
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-    script.onload = () => {
-      const L = window.L;
-      const map = L.map(mapRef.current, { zoomControl: true }).setView([28.6353, -106.0889], 14);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors", maxZoom: 19
-      }).addTo(map);
-      map.on("click", e => onMapClick(e.latlng));
-      leafletMap.current = map;
-    };
-    document.head.appendChild(script);
+    if (leafletMap.current) return;
+    const map = L.map(mapRef.current, { zoomControl: true }).setView([28.6353, -106.0889], 14);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors", maxZoom: 19
+    }).addTo(map);
+    map.on("click", e => onMapClick(e.latlng));
+    leafletMap.current = map;
   }, []);
 
-  // GPS marker
+  // GPS dot
   useEffect(() => {
-    const L = window.L;
-    if (!L || !leafletMap.current || !userPos) return;
+    if (!leafletMap.current || !userPos) return;
     const icon = L.divIcon({
-      html: `<div style="width:18px;height:18px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,0.3)"></div>`,
-      className: "", iconSize: [18, 18], iconAnchor: [9, 9]
+      html: `<div style="width:18px;height:18px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(59,130,246,0.25)"></div>`,
+      className: "", iconSize: [18,18], iconAnchor: [9,9]
     });
-    if (userMarker.current) {
-      userMarker.current.setLatLng([userPos.lat, userPos.lng]);
-    } else {
-      userMarker.current = L.marker([userPos.lat, userPos.lng], { icon, zIndexOffset: 1000 }).addTo(leafletMap.current).bindPopup("📍 Tu ubicación GPS");
-      leafletMap.current.setView([userPos.lat, userPos.lng], 17);
+    if (userMarker.current) { userMarker.current.setLatLng([userPos.lat, userPos.lng]); }
+    else {
+      userMarker.current = L.marker([userPos.lat, userPos.lng], { icon, zIndexOffset:1000 })
+        .addTo(leafletMap.current).bindPopup("📍 Tu ubicación GPS");
     }
+    if (!hasPanned.current) { leafletMap.current.setView([userPos.lat, userPos.lng], 17); hasPanned.current = true; }
   }, [userPos]);
 
   // Pending pin
   useEffect(() => {
-    const L = window.L;
-    if (!L || !leafletMap.current) return;
+    if (!leafletMap.current) return;
     if (pinMarker.current) { pinMarker.current.remove(); pinMarker.current = null; }
     if (!pendingCoords) return;
     const icon = L.divIcon({
-      html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="width:22px;height:22px;background:#facc15;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.5)"></div><div style="width:2px;height:12px;background:#facc15;margin-top:-2px"></div></div>`,
-      className: "", iconSize: [22, 34], iconAnchor: [11, 34]
+      html: `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
+        <div style="background:#111827;color:#facc15;font-size:10px;padding:2px 7px;border-radius:5px;white-space:nowrap;margin-bottom:3px;border:1px solid #facc15;font-weight:600">
+          ${pendingCoords.lat.toFixed(5)}, ${pendingCoords.lng.toFixed(5)}
+        </div>
+        <div style="width:20px;height:20px;background:#facc15;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.6)"></div>
+        <div style="width:2px;height:10px;background:#facc15;margin-top:-1px"></div>
+      </div>`,
+      className: "", iconSize: [140,52], iconAnchor: [70,52]
     });
-    pinMarker.current = L.marker([pendingCoords.lat, pendingCoords.lng], { icon, zIndexOffset: 900 }).addTo(leafletMap.current).bindPopup(`📌 ${pendingCoords.lat.toFixed(6)}, ${pendingCoords.lng.toFixed(6)}`).openPopup();
+    pinMarker.current = L.marker([pendingCoords.lat, pendingCoords.lng], { icon, zIndexOffset:900, interactive:false }).addTo(leafletMap.current);
   }, [pendingCoords]);
 
-  // Element markers + connection lines
+  // Connection lines
   useEffect(() => {
-    const L = window.L;
-    if (!L || !leafletMap.current) return;
-
-    // Clear markers
-    Object.values(markersRef.current).forEach(m => m.remove());
-    markersRef.current = {};
-    // Clear lines
+    if (!leafletMap.current) return;
     linesRef.current.forEach(l => l.remove());
     linesRef.current = [];
-
-    // Draw connection lines
+    const connColors = { "Aerial Route":"#F97316", "ADSS":"#A78BFA", "Ducto":"#34D399" };
     connections.forEach(c => {
       const elA = elements.find(e => e.id === c.a);
       const elB = elements.find(e => e.id === c.b);
       if (!elA || !elB) return;
-      const colors = { "Aerial Route": "#F97316", "ADSS": "#A78BFA", "Ducto": "#34D399" };
-      const line = L.polyline([[elA.lat, elA.lng], [elB.lat, elB.lng]], {
-        color: colors[c.tipo] || "#60a5fa", weight: 2.5, opacity: 0.85, dashArray: c.tipo === "Ducto" ? "6 4" : null
+      const color = connColors[c.tipo] || "#60a5fa";
+      const poly  = L.polyline([[elA.lat,elA.lng],[elB.lat,elB.lng]], {
+        color, weight:2.5, opacity:0.85, dashArray: c.tipo === "Ducto" ? "6 4" : null
       }).addTo(leafletMap.current);
-      line.bindPopup(`<b>${c.tipo}</b><br/>${elA.nombre} ↔ ${elB.nombre}<br/>${c.distancia?.toFixed(1)} m`);
-      linesRef.current.push(line);
+      poly.bindPopup(`<b>${c.tipo}</b><br/>${elA.nombre} ↔ ${elB.nombre}<br/>${c.distancia?.toFixed(1)} m`);
+      linesRef.current.push(poly);
     });
+  }, [connections, elements]);
 
-    // Draw element markers
+  // Element markers
+  useEffect(() => {
+    if (!leafletMap.current) return;
+    Object.values(markersRef.current).forEach(m => m.remove());
+    markersRef.current = {};
     elements.forEach(el => {
       if (!visibleTypes.includes(el.type)) return;
-      const def = ELEMENT_TYPES[el.type];
-      const isSel = el.id === selectedId;
-      const size = isSel ? 30 : 24;
-      const icon = L.divIcon({
-        html: `<div style="background:${def.color};width:${size}px;height:${size}px;border-radius:50%;border:${isSel ? "3px solid #fff" : "2px solid rgba(255,255,255,0.5)"};display:flex;align-items:center;justify-content:center;font-size:${isSel ? 15 : 12}px;box-shadow:0 2px 8px rgba(0,0,0,0.6)">${def.icon}</div>`,
-        className: "", iconSize: [size, size], iconAnchor: [size/2, size/2]
+      const def    = ELEMENT_TYPES[el.type];
+      const isSel  = el.id === selectedId;
+      const isFrom = el.id === connectFromId;
+      const size   = isSel ? 32 : 26;
+      const border = isFrom ? "3px solid #fbbf24" : isSel ? "3px solid #fff" : "2px solid rgba(255,255,255,0.5)";
+      const isNew  = el.attrs?.condicion === "Nuevo a Instalar";
+      const icon   = L.divIcon({
+        html: `<div style="position:relative">
+          <div style="background:${def.color};width:${size}px;height:${size}px;border-radius:50%;border:${border};display:flex;align-items:center;justify-content:center;font-size:${isSel?16:13}px;box-shadow:0 2px 8px rgba(0,0,0,0.6)">${def.icon}</div>
+          ${isNew ? `<div style="position:absolute;top:-5px;right:-5px;background:#22c55e;color:#fff;font-size:8px;font-weight:800;border-radius:3px;padding:1px 3px">NEW</div>` : ""}
+          ${connectMode && !isFrom ? `<div style="position:absolute;inset:0;border-radius:50%;border:2px solid #fbbf24;opacity:0.6"></div>` : ""}
+        </div>`,
+        className: "", iconSize: [size,size], iconAnchor: [size/2,size/2]
       });
-      // Label above pin
+      // Name label above marker
       const labelIcon = L.divIcon({
-        html: `<div style="background:rgba(0,0,0,0.7);color:#fff;padding:1px 5px;border-radius:4px;font-size:10px;white-space:nowrap;font-family:sans-serif">${el.nombre}</div>`,
-        className: "", iconAnchor: [0, 30]
+        html: `<div style="background:rgba(0,0,0,0.75);color:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:10px;white-space:nowrap;font-family:sans-serif;pointer-events:none">${el.nombre}</div>`,
+        className: "", iconAnchor: [0, 28]
       });
-      L.marker([el.lat, el.lng], { icon: labelIcon, zIndexOffset: 800, interactive: false }).addTo(leafletMap.current);
+      L.marker([el.lat, el.lng], { icon: labelIcon, zIndexOffset:800, interactive:false }).addTo(leafletMap.current);
+      const popup = `<b>${def.label}</b><br/>${el.nombre}<br/><small>${el.lat.toFixed(6)}, ${el.lng.toFixed(6)}</small>`;
       const m = L.marker([el.lat, el.lng], { icon })
         .addTo(leafletMap.current)
-        .bindPopup(`<b>${def.label}</b><br/>${el.nombre}<br/><small>${el.lat.toFixed(6)}, ${el.lng.toFixed(6)}</small>`);
-      m.on("click", () => onSelectElement(el.id));
+        .bindPopup(popup, { offset:[0,-size/2] });
+      m.on("click", e => {
+        L.DomEvent.stopPropagation(e);
+        connectMode ? onSelectForConnect(el.id) : onSelectElement(el.id);
+      });
       markersRef.current[el.id] = m;
     });
-  }, [elements, connections, selectedId, visibleTypes]);
+  }, [elements, connections, selectedId, visibleTypes, connectMode, connectFromId]);
 
-  return <div ref={mapRef} style={{ width: "100%", height: "100%" }} />;
+  return <div ref={mapRef} style={{ width:"100%", height:"100%" }} />;
 }
 
 // ─── Data Management Tab ──────────────────────────────────────────────────────
-function DataTab({ elements, connections, setElements, setConnections, project }) {
-  const [editingEl,   setEditingEl]   = useState(null);   // element id being edited inline
+function DataTab({ elements, connections, setElements, setConnections }) {
+  const [editingEl,   setEditingEl]   = useState(null);
+  const [editingConn, setEditingConn] = useState(null);
   const [newConn,     setNewConn]     = useState({ a:"", b:"", tipo:"" });
-  const [editingConn, setEditingConn] = useState(null);   // conn id being edited
 
-  // ── Elements table ──
-  function handleElAttrChange(id, key, value) {
-    setElements(prev => prev.map(e => e.id === id ? { ...e, attrs: { ...e.attrs, [key]: value } } : e));
-  }
-  function handleElNombreChange(id, nombre) {
-    setElements(prev => prev.map(e => e.id === id ? { ...e, nombre } : e));
-  }
-  function deleteEl(id) {
-    setElements(prev => prev.filter(e => e.id !== id));
-    setConnections(prev => prev.filter(c => c.a !== id && c.b !== id));
-  }
+  function handleElNombreChange(id, nombre) { setElements(prev => prev.map(e => e.id === id ? { ...e, nombre } : e)); }
+  function handleElAttrChange(id, key, val) { setElements(prev => prev.map(e => e.id === id ? { ...e, attrs:{ ...e.attrs, [key]:val } } : e)); }
+  function deleteEl(id) { setElements(prev => prev.filter(e => e.id !== id)); setConnections(prev => prev.filter(c => c.a !== id && c.b !== id)); }
 
-  // ── Connections table ──
   function addConnection() {
     if (!newConn.a || !newConn.b || newConn.a === newConn.b) return;
-    const elA = elements.find(e => e.id === newConn.a);
-    const elB = elements.find(e => e.id === newConn.b);
+    const elA      = elements.find(e => e.id === newConn.a);
+    const elB      = elements.find(e => e.id === newConn.b);
     const distancia = haversineMeters(elA.lat, elA.lng, elB.lat, elB.lng);
-    const tipo = newConn.tipo || inferConnectionType(elA.type, elB.type);
-    const conn = { id: generateId(), a: newConn.a, b: newConn.b, tipo, distancia, timestamp: new Date().toISOString(), automatica: false };
-    setConnections(prev => [...prev, conn]);
+    const tipo      = newConn.tipo || inferConnectionType(elA.type, elB.type);
+    setConnections(prev => [...prev, { id:generateId(), a:newConn.a, b:newConn.b, tipo, infraestructura:"existente", distancia, timestamp:new Date().toISOString(), automatica:false }]);
     setNewConn({ a:"", b:"", tipo:"" });
   }
-  function updateConnTipo(id, tipo) {
-    setConnections(prev => prev.map(c => c.id === id ? { ...c, tipo } : c));
-  }
+  function updateConnTipo(id, tipo)          { setConnections(prev => prev.map(c => c.id === id ? { ...c, tipo } : c)); }
+  function updateConnInfra(id, infraestructura) { setConnections(prev => prev.map(c => c.id === id ? { ...c, infraestructura } : c)); }
   function deleteConn(id) { setConnections(prev => prev.filter(c => c.id !== id)); }
-
-  const typeColors = { poste:"#F97316", handhole:"#64748B", cierre:"#EF4444", edificio:"#3B82F6" };
 
   const thStyle = { color:"#94a3b8", fontSize:11, fontWeight:700, padding:"8px 10px", textAlign:"left", borderBottom:"1px solid #1f2937", background:"#0d1117", whiteSpace:"nowrap" };
   const tdStyle = { color:"#e2e8f0", fontSize:12, padding:"6px 10px", borderBottom:"1px solid #1a2035", verticalAlign:"middle" };
 
   return (
     <div style={{ padding:12 }}>
-      {/* ── Elements section ── */}
+      {/* Elements section */}
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
         <span style={{ fontSize:16 }}>📋</span>
         <span style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>Elementos Registrados</span>
         <span style={{ marginLeft:"auto", background:"#1f2937", color:"#60a5fa", borderRadius:10, padding:"2px 8px", fontSize:11 }}>{elements.length}</span>
       </div>
       <div style={{ overflowX:"auto", marginBottom:20, borderRadius:8, border:"1px solid #1f2937" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:600 }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:560 }}>
           <thead>
             <tr>
               <th style={thStyle}>#</th>
               <th style={thStyle}>Nombre</th>
               <th style={thStyle}>Tipo</th>
               <th style={thStyle}>Condición</th>
-              <th style={thStyle}>Coordenadas</th>
-              <th style={thStyle}>Acciones</th>
+              <th style={thStyle}>Coords</th>
+              <th style={thStyle}></th>
             </tr>
           </thead>
           <tbody>
@@ -517,48 +533,38 @@ function DataTab({ elements, connections, setElements, setConnections, project }
               <tr><td colSpan={6} style={{ ...tdStyle, color:"#374151", textAlign:"center", padding:20 }}>Sin elementos capturados</td></tr>
             )}
             {elements.map((el, i) => {
-              const def = ELEMENT_TYPES[el.type];
+              const def      = ELEMENT_TYPES[el.type];
               const isEditing = editingEl === el.id;
               return (
-                <tr key={el.id} style={{ background: i % 2 === 0 ? "#0a0d14" : "#0d1117" }}>
-                  <td style={{ ...tdStyle, color:"#4b5563", width:32 }}>{i}</td>
+                <tr key={el.id} style={{ background: i%2===0 ? "#0a0d14" : "#0d1117" }}>
+                  <td style={{ ...tdStyle, color:"#4b5563", width:28 }}>{i}</td>
                   <td style={tdStyle}>
-                    {isEditing ? (
-                      <input value={el.nombre} onChange={e => handleElNombreChange(el.id, e.target.value)} style={{ ...inputStyle, width:140 }} />
-                    ) : (
-                      <span style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        <span style={{ width:10, height:10, borderRadius:"50%", background:def.color, flexShrink:0 }} />
-                        {el.nombre}
-                      </span>
-                    )}
+                    {isEditing
+                      ? <input value={el.nombre} onChange={e => handleElNombreChange(el.id, e.target.value)} style={{ ...inputStyle, width:130 }} />
+                      : <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+                          <span style={{ width:9, height:9, borderRadius:"50%", background:def.color, flexShrink:0 }} />
+                          <span style={{ fontSize:11 }}>{el.nombre}</span>
+                        </span>
+                    }
                   </td>
                   <td style={tdStyle}>
-                    <span style={{ background:def.color + "22", color:def.color, borderRadius:4, padding:"2px 7px", fontSize:11 }}>
+                    <span style={{ background:def.color+"22", color:def.color, borderRadius:4, padding:"2px 6px", fontSize:11, whiteSpace:"nowrap" }}>
                       {def.icon} {def.label}
                     </span>
                   </td>
                   <td style={tdStyle}>
-                    {isEditing ? (
-                      <select value={el.attrs?.condicion || ""} onChange={e => handleElAttrChange(el.id, "condicion", e.target.value)} style={{ ...inputStyle, width:140 }}>
-                        <option value="">--</option>
-                        <option>Existente</option>
-                        <option>Nuevo a Instalar</option>
-                      </select>
-                    ) : (
-                      <span style={{ fontSize:11, color:"#94a3b8" }}>{el.attrs?.condicion || "—"}</span>
-                    )}
+                    {isEditing
+                      ? <select value={el.attrs?.condicion||""} onChange={e => handleElAttrChange(el.id,"condicion",e.target.value)} style={{ ...inputStyle, width:130 }}>
+                          <option value="">--</option><option>Existente</option><option>Nuevo a Instalar</option>
+                        </select>
+                      : <span style={{ fontSize:11, color:"#94a3b8" }}>{el.attrs?.condicion||"—"}</span>
+                    }
                   </td>
-                  <td style={{ ...tdStyle, color:"#4b5563", fontSize:11 }}>
-                    {el.lat.toFixed(5)}, {el.lng.toFixed(5)}
-                  </td>
+                  <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{el.lat.toFixed(4)}, {el.lng.toFixed(4)}</td>
                   <td style={tdStyle}>
                     <div style={{ display:"flex", gap:4 }}>
-                      <button onClick={() => setEditingEl(isEditing ? null : el.id)}
-                        style={{ ...btnStyle(isEditing ? "#059669" : "#1d4ed8"), padding:"3px 8px", fontSize:11 }}>
-                        {isEditing ? "✓" : "✏️"}
-                      </button>
-                      <button onClick={() => deleteEl(el.id)}
-                        style={{ ...btnStyle("#991b1b"), padding:"3px 8px", fontSize:11 }}>🗑️</button>
+                      <button onClick={() => setEditingEl(isEditing ? null : el.id)} style={{ ...miniBtn(isEditing?"#059669":"#1d4ed8"), padding:"3px 7px" }}>{isEditing?"✓":"✏️"}</button>
+                      <button onClick={() => deleteEl(el.id)} style={{ ...miniBtn("#991b1b"), padding:"3px 7px" }}>🗑️</button>
                     </div>
                   </td>
                 </tr>
@@ -568,7 +574,7 @@ function DataTab({ elements, connections, setElements, setConnections, project }
         </table>
       </div>
 
-      {/* ── Connections section ── */}
+      {/* Connections section */}
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
         <span style={{ fontSize:16 }}>🔗</span>
         <span style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>Conexiones</span>
@@ -577,11 +583,15 @@ function DataTab({ elements, connections, setElements, setConnections, project }
 
       {/* Add connection form */}
       <div style={{ background:"#0d1117", border:"1px solid #1f2937", borderRadius:8, padding:12, marginBottom:12 }}>
-        <div style={{ color:"#7c8db0", fontSize:11, fontWeight:700, marginBottom:8 }}>+ Agregar conexión</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr auto", gap:8, alignItems:"end" }}>
+        <div style={{ color:"#7c8db0", fontSize:11, fontWeight:700, marginBottom:8 }}>+ Agregar conexión manual</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
           <div>
             <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:3 }}>Elemento A</label>
-            <select value={newConn.a} onChange={e => setNewConn(p => ({ ...p, a:e.target.value, tipo: p.b ? inferConnectionType(elements.find(el=>el.id===e.target.value)?.type, elements.find(el=>el.id===p.b)?.type) : p.tipo }))} style={inputStyle}>
+            <select value={newConn.a} onChange={e => {
+              const typeA = elements.find(el=>el.id===e.target.value)?.type;
+              const typeB = elements.find(el=>el.id===newConn.b)?.type;
+              setNewConn(p => ({ ...p, a:e.target.value, tipo: typeA&&typeB ? inferConnectionType(typeA,typeB) : p.tipo }));
+            }} style={inputStyle}>
               <option value="">-- Seleccionar --</option>
               {elements.map(el => <option key={el.id} value={el.id}>{el.nombre}</option>)}
             </select>
@@ -591,20 +601,23 @@ function DataTab({ elements, connections, setElements, setConnections, project }
             <select value={newConn.b} onChange={e => {
               const typeB = elements.find(el=>el.id===e.target.value)?.type;
               const typeA = elements.find(el=>el.id===newConn.a)?.type;
-              setNewConn(p => ({ ...p, b:e.target.value, tipo: typeA && typeB ? inferConnectionType(typeA, typeB) : p.tipo }));
+              setNewConn(p => ({ ...p, b:e.target.value, tipo: typeA&&typeB ? inferConnectionType(typeA,typeB) : p.tipo }));
             }} style={inputStyle}>
               <option value="">-- Seleccionar --</option>
-              {elements.filter(el => el.id !== newConn.a).map(el => <option key={el.id} value={el.id}>{el.nombre}</option>)}
+              {elements.filter(el=>el.id!==newConn.a).map(el => <option key={el.id} value={el.id}>{el.nombre}</option>)}
             </select>
           </div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:8, alignItems:"end" }}>
           <div>
-            <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:3 }}>Tipo construcción</label>
-            <select value={newConn.tipo} onChange={e => setNewConn(p => ({ ...p, tipo: e.target.value }))} style={inputStyle}>
+            <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:3 }}>Tipo de construcción</label>
+            <select value={newConn.tipo} onChange={e => setNewConn(p=>({...p,tipo:e.target.value}))} style={inputStyle}>
               <option value="">-- Auto --</option>
               {CONNECTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-          <button onClick={addConnection} disabled={!newConn.a || !newConn.b} style={{ ...btnStyle(!newConn.a||!newConn.b?"#1f2937":"#4f46e5"), padding:"6px 12px", height:32 }}>
+          <button onClick={addConnection} disabled={!newConn.a||!newConn.b}
+            style={{ ...btnStyle(!newConn.a||!newConn.b?"#1f2937":"#4f46e5"), padding:"6px 14px", height:32 }}>
             + Agregar
           </button>
         </div>
@@ -612,63 +625,68 @@ function DataTab({ elements, connections, setElements, setConnections, project }
 
       {/* Connections table */}
       <div style={{ overflowX:"auto", borderRadius:8, border:"1px solid #1f2937" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:700 }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:680 }}>
           <thead>
             <tr>
               <th style={thStyle}>#</th>
               <th style={thStyle}>Elemento A</th>
               <th style={thStyle}>Elemento B</th>
               <th style={thStyle}>Tipo construcción</th>
+              <th style={thStyle}>Infraestructura</th>
               <th style={thStyle}>Distancia (m)</th>
               <th style={thStyle}>Fecha</th>
-              <th style={thStyle}>Automática</th>
-              <th style={thStyle}>Acciones</th>
+              <th style={thStyle}>Auto</th>
+              <th style={thStyle}></th>
             </tr>
           </thead>
           <tbody>
             {connections.length === 0 && (
-              <tr><td colSpan={8} style={{ ...tdStyle, color:"#374151", textAlign:"center", padding:20 }}>Sin conexiones</td></tr>
+              <tr><td colSpan={9} style={{ ...tdStyle, color:"#374151", textAlign:"center", padding:20 }}>Sin conexiones</td></tr>
             )}
             {connections.map((c, i) => {
-              const elA = elements.find(e => e.id === c.a);
-              const elB = elements.find(e => e.id === c.b);
-              const connColors = { "Aerial Route":"#F97316", "ADSS":"#A78BFA", "Ducto":"#34D399" };
-              const isEditing = editingConn === c.id;
+              const elA        = elements.find(e => e.id === c.a);
+              const elB        = elements.find(e => e.id === c.b);
+              const connColors = { "Aerial Route":"#F97316","ADSS":"#A78BFA","Ducto":"#34D399" };
+              const isEditing  = editingConn === c.id;
               return (
-                <tr key={c.id} style={{ background: i % 2 === 0 ? "#0a0d14" : "#0d1117" }}>
+                <tr key={c.id} style={{ background: i%2===0 ? "#0a0d14" : "#0d1117" }}>
                   <td style={{ ...tdStyle, color:"#4b5563" }}>{i}</td>
                   <td style={tdStyle}>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}>
-                      <span style={{ width:8, height:8, borderRadius:"50%", background:ELEMENT_TYPES[elA?.type]?.color, flexShrink:0 }} />
-                      {elA?.nombre || c.a.slice(0, 8)}
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:ELEMENT_TYPES[elA?.type]?.color, flexShrink:0 }} />
+                      <span style={{ fontSize:11 }}>{elA?.nombre||c.a.slice(0,8)}</span>
                     </span>
                   </td>
                   <td style={tdStyle}>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}>
-                      <span style={{ width:8, height:8, borderRadius:"50%", background:ELEMENT_TYPES[elB?.type]?.color, flexShrink:0 }} />
-                      {elB?.nombre || c.b.slice(0, 8)}
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:ELEMENT_TYPES[elB?.type]?.color, flexShrink:0 }} />
+                      <span style={{ fontSize:11 }}>{elB?.nombre||c.b.slice(0,8)}</span>
                     </span>
                   </td>
                   <td style={tdStyle}>
-                    {isEditing ? (
-                      <select value={c.tipo} onChange={e => updateConnTipo(c.id, e.target.value)} style={{ ...inputStyle, width:140 }}>
-                        {CONNECTION_TYPES.map(t => <option key={t}>{t}</option>)}
-                      </select>
-                    ) : (
-                      <span style={{ background:connColors[c.tipo]+"22", color:connColors[c.tipo], borderRadius:4, padding:"2px 7px", fontSize:11 }}>{c.tipo}</span>
-                    )}
+                    {isEditing
+                      ? <select value={c.tipo} onChange={e=>updateConnTipo(c.id,e.target.value)} style={{ ...inputStyle, width:130 }}>
+                          {CONNECTION_TYPES.map(t=><option key={t}>{t}</option>)}
+                        </select>
+                      : <span style={{ background:connColors[c.tipo]+"22", color:connColors[c.tipo]||"#94a3b8", borderRadius:4, padding:"2px 6px", fontSize:11 }}>{c.tipo}</span>
+                    }
+                  </td>
+                  <td style={tdStyle}>
+                    {isEditing
+                      ? <select value={c.infraestructura||"existente"} onChange={e=>updateConnInfra(c.id,e.target.value)} style={{ ...inputStyle, width:110 }}>
+                          <option value="existente">existente</option>
+                          <option value="nueva">nueva</option>
+                        </select>
+                      : <span style={{ fontSize:11, color:"#94a3b8" }}>{c.infraestructura||"existente"}</span>
+                    }
                   </td>
                   <td style={{ ...tdStyle, color:"#60a5fa", fontWeight:700 }}>{c.distancia?.toFixed(2)}</td>
-                  <td style={{ ...tdStyle, color:"#4b5563", fontSize:11 }}>{c.timestamp?.slice(0,19).replace("T"," ")}</td>
+                  <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{c.timestamp?.slice(0,19).replace("T"," ")}</td>
                   <td style={tdStyle}>{c.automatica ? <span style={{ color:"#34d399" }}>✓</span> : <span style={{ color:"#374151" }}>–</span>}</td>
                   <td style={tdStyle}>
                     <div style={{ display:"flex", gap:4 }}>
-                      <button onClick={() => setEditingConn(isEditing ? null : c.id)}
-                        style={{ ...btnStyle(isEditing ? "#059669" : "#1d4ed8"), padding:"3px 8px", fontSize:11 }}>
-                        {isEditing ? "✓" : "✏️"}
-                      </button>
-                      <button onClick={() => deleteConn(c.id)}
-                        style={{ ...btnStyle("#991b1b"), padding:"3px 8px", fontSize:11 }}>🗑️</button>
+                      <button onClick={() => setEditingConn(isEditing ? null : c.id)} style={{ ...miniBtn(isEditing?"#059669":"#1d4ed8"), padding:"3px 7px" }}>{isEditing?"✓":"✏️"}</button>
+                      <button onClick={() => deleteConn(c.id)} style={{ ...miniBtn("#991b1b"), padding:"3px 7px" }}>🗑️</button>
                     </div>
                   </td>
                 </tr>
@@ -682,7 +700,7 @@ function DataTab({ elements, connections, setElements, setConnections, project }
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
-export default function App() {
+function App() {
   const [project,       setProject]       = useState(null);
   const [elements,      setElements]      = useState([]);
   const [connections,   setConnections]   = useState([]);
@@ -698,304 +716,354 @@ export default function App() {
   const [gpsActive,     setGpsActive]     = useState(false);
   const [userPos,       setUserPos]       = useState(null);
   const [gpsError,      setGpsError]      = useState(null);
-  // Connection mode
+  const [gpsStatus,     setGpsStatus]     = useState("idle");
+  const [showGPSModal,  setShowGPSModal]  = useState(false);
+  const [showDenied,    setShowDenied]    = useState(false);
   const [connectMode,   setConnectMode]   = useState(false);
-  const [connA,         setConnA]         = useState(null);
+  const [connectFrom,   setConnectFrom]   = useState(null);
   const watchRef = useRef(null);
 
   const handleMapClick = useCallback((latlng) => {
-    if (connectMode) return; // don't place elements in connect mode
-    setPendingCoords(latlng);
-    setLastCoords(latlng);
-    setAddingType(null);
+    if (connectMode) return;
+    setPendingCoords(latlng); setLastCoords(latlng); setAddingType(null);
   }, [connectMode]);
 
-  // When connecting: first click = A, second click = B, auto-create connection
-  function handleSelectElement(id) {
-    setSelectedId(id);
+  useEffect(() => {
+    if (!navigator.permissions) return;
+    navigator.permissions.query({ name:"geolocation" }).then(r => {
+      if (r.state === "granted") setGpsStatus("granted-idle");
+      else if (r.state === "denied") setGpsStatus("denied");
+      r.onchange = () => {
+        if (r.state === "denied")  { setGpsStatus("denied");       stopGPS(); }
+        if (r.state === "granted") { setGpsStatus("granted-idle"); }
+      };
+    }).catch(()=>{});
+  }, []);
+
+  function stopGPS() {
+    if (watchRef.current) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
+    setGpsActive(false); setUserPos(null);
+  }
+  function startWatching() {
+    if (!navigator.geolocation) { setGpsError("GPS no disponible."); setGpsStatus("error"); return; }
+    setGpsStatus("requesting"); setGpsError(null);
+    watchRef.current = navigator.geolocation.watchPosition(
+      pos => {
+        const p = { lat:pos.coords.latitude, lng:pos.coords.longitude, acc:pos.coords.accuracy };
+        setUserPos(p); setLastCoords(p); setGpsError(null); setGpsActive(true); setGpsStatus("active"); setShowDenied(false);
+      },
+      err => {
+        setGpsActive(false); setGpsStatus("denied");
+        if (err.code===1) { setShowDenied(true); setGpsError("Permiso denegado."); }
+        else if (err.code===2) setGpsError("Señal GPS no disponible.");
+        else if (err.code===3) setGpsError("Tiempo de espera agotado.");
+        if (watchRef.current) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
+      },
+      { enableHighAccuracy:true, maximumAge:3000, timeout:20000 }
+    );
+  }
+  function handleGPSButtonClick() {
+    if (gpsActive) { stopGPS(); setGpsStatus("idle"); return; }
+    if (gpsStatus === "granted-idle") { startWatching(); return; }
+    if (gpsStatus === "denied") { setShowDenied(true); return; }
+    setShowGPSModal(true);
+  }
+  function handleCaptureGPS() {
+    if (!userPos) return;
+    setPendingCoords({ lat:userPos.lat, lng:userPos.lng });
+    setLastCoords({ lat:userPos.lat, lng:userPos.lng });
+    setAddingType(null);
+  }
+
+  function addElement(type, coords, nombre, attrs, photos) {
+    const el = { id:generateId(), type, nombre, lat:coords.lat, lng:coords.lng, attrs, photos:photos||[], timestamp:new Date().toISOString() };
+    setElements(p => [...p, el]);
+    setPendingCoords(null); setAddingType(null); setSelectedId(el.id);
+  }
+  function updateElement(id, nombre, attrs, photos) {
+    setElements(p => p.map(e => e.id===id ? { ...e, nombre, attrs, photos:photos||[] } : e));
     setEditingId(null);
-    if (!connectMode) return;
-    if (!connA) {
-      setConnA(id);
-    } else if (id !== connA) {
-      const elA = elements.find(e => e.id === connA);
-      const elB = elements.find(e => e.id === id);
+  }
+  function deleteElement(id) {
+    setElements(p => p.filter(e => e.id!==id));
+    setConnections(p => p.filter(c => c.a!==id && c.b!==id));
+    setSelectedId(null);
+  }
+  function handleAIAdd({ type, lat, lng, attrs }) {
+    const nombre = autoName(project, type, elements);
+    setElements(p => [...p, { id:generateId(), type, nombre, lat, lng, attrs, photos:[], timestamp:new Date().toISOString() }]);
+  }
+
+  // Connect mode: click A then B → auto-create connection
+  function handleSelectForConnect(id) {
+    setSelectedId(id);
+    if (!connectFrom) {
+      setConnectFrom(id);
+    } else if (id !== connectFrom) {
+      const elA       = elements.find(e => e.id === connectFrom);
+      const elB       = elements.find(e => e.id === id);
       const distancia = haversineMeters(elA.lat, elA.lng, elB.lat, elB.lng);
-      const tipo = inferConnectionType(elA.type, elB.type);
-      setConnections(prev => [...prev, { id: generateId(), a: connA, b: id, tipo, distancia, timestamp: new Date().toISOString(), automatica: true }]);
-      setConnA(null);
+      const tipo      = inferConnectionType(elA.type, elB.type);
+      setConnections(prev => [...prev, { id:generateId(), a:connectFrom, b:id, tipo, infraestructura:"existente", distancia, timestamp:new Date().toISOString(), automatica:true }]);
+      setConnectFrom(null);
       setConnectMode(false);
     }
   }
 
-  function addElement(type, coords, nombre, attrs, photos) {
-    const el = { id: generateId(), type, nombre, lat: coords.lat, lng: coords.lng, attrs, photos: photos || [], timestamp: new Date().toISOString() };
-    setElements(p => [...p, el]);
-    setPendingCoords(null);
-    setAddingType(null);
-    setSelectedId(el.id);
-  }
-
-  function updateElement(id, nombre, attrs, photos) {
-    setElements(p => p.map(e => e.id === id ? { ...e, nombre, attrs, photos: photos || [] } : e));
-    setEditingId(null);
-  }
-
-  function deleteElement(id) {
-    setElements(p => p.filter(e => e.id !== id));
-    setConnections(p => p.filter(c => c.a !== id && c.b !== id));
-    setSelectedId(null);
-  }
-
-  function handleAIAdd({ type, lat, lng, attrs }) {
-    const nombre = autoName(project, type, elements);
-    const el = { id: generateId(), type, nombre, lat, lng, attrs, photos: [], timestamp: new Date().toISOString() };
-    setElements(p => [...p, el]);
-    setSelectedId(el.id);
-  }
-
-  function toggleGPS() {
-    if (gpsActive) {
-      if (watchRef.current) navigator.geolocation.clearWatch(watchRef.current);
-      setGpsActive(false); setUserPos(null); setGpsError(null);
-    } else {
-      setGpsError(null);
-      if (!navigator.geolocation) { setGpsError("GPS no disponible."); return; }
-      watchRef.current = navigator.geolocation.watchPosition(
-        pos => {
-          const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
-          setUserPos(p); setLastCoords(p); setGpsError(null);
-        },
-        err => {
-          const msgs = { 1:"Permiso denegado.", 2:"Señal no disponible.", 3:"Tiempo agotado." };
-          setGpsError(msgs[err.code] || "Error GPS.");
-        },
-        { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
-      );
-      setGpsActive(true);
-    }
-  }
-
   function handleExport() {
-    const ts = new Date().toISOString().slice(0, 10);
-    if (exportFmt === "GeoJSON") downloadFile(JSON.stringify(toGeoJSON(elements), null, 2), `${project}_${ts}.geojson`, "application/geo+json");
-    if (exportFmt === "KML")     downloadFile(toKML(elements),                    `${project}_${ts}.kml`, "application/vnd.google-earth.kml+xml");
-    if (exportFmt === "CSV")     downloadFile(toCSV(elements, connections),        `${project}_${ts}.csv`, "text/csv");
+    const ts = new Date().toISOString().slice(0,10);
+    if (exportFmt==="GeoJSON") downloadFile(JSON.stringify(toGeoJSON(elements),null,2), `${project}_${ts}.geojson`, "application/geo+json");
+    if (exportFmt==="KML")     downloadFile(toKML(elements), `${project}_${ts}.kml`, "application/vnd.google-earth.kml+xml");
+    if (exportFmt==="CSV")     downloadFile(toCSV(elements,connections), `${project}_${ts}.csv`, "text/csv");
   }
+
+  const gpsLabel  = { idle:"📍 GPS","granted-idle":"📍 GPS",requesting:"⏳ GPS...",active:"🟢 GPS",denied:"🚫 GPS",error:"⚠️ GPS" }[gpsStatus] ?? "📍 GPS";
+  const gpsBg     = { active:"#065f46",requesting:"#1a2e05",denied:"#7f1d1d",error:"#7f1d1d" }[gpsStatus] ?? "#1f2937";
+  const gpsColor  = { active:"#34d399",requesting:"#a3e635",denied:"#fca5a5",error:"#fca5a5" }[gpsStatus] ?? "#9ca3af";
+  const gpsBorder = { active:"#059669",requesting:"#4ade80",denied:"#ef4444",error:"#ef4444" }[gpsStatus] ?? "#374151";
 
   const selected = elements.find(e => e.id === selectedId);
-  const editing  = elements.find(e => e.id === editingId);
-  const filtered = elements.filter(e =>
-    !searchQ || e.nombre?.toLowerCase().includes(searchQ.toLowerCase()) ||
-    Object.values(e.attrs || {}).some(v => String(v).toLowerCase().includes(searchQ.toLowerCase()))
-  );
-  const counts = Object.fromEntries(Object.keys(ELEMENT_TYPES).map(t => [t, elements.filter(e => e.type === t).length]));
+  const filtered = elements.filter(e => !searchQ ||
+    e.nombre?.toLowerCase().includes(searchQ.toLowerCase()) ||
+    Object.values(e.attrs||{}).some(v => String(v).toLowerCase().includes(searchQ.toLowerCase())));
+  const counts = Object.fromEntries(Object.keys(ELEMENT_TYPES).map(t => [t, elements.filter(e=>e.type===t).length]));
 
   if (!project) return <ProjectModal onConfirm={name => setProject(name)} />;
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:"#0d1117", color:"#e2e8f0", fontFamily:"'Inter',sans-serif", overflow:"hidden" }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:"#0d1117", color:"#e2e8f0", overflow:"hidden" }}>
 
-      {/* TOP HEADER */}
-      <div style={{ background:"#111827", borderBottom:"1px solid #1f2937", padding:"10px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+      {showGPSModal && <GPSPermissionModal onConfirm={()=>{setShowGPSModal(false);startWatching();}} onCancel={()=>setShowGPSModal(false)} />}
+      {showDenied   && <GPSDeniedModal onClose={()=>setShowDenied(false)} />}
+
+      {/* Header */}
+      <div style={{ background:"#111827", borderBottom:"1px solid #1f2937", padding:"8px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, gap:6 }}>
         <div>
-          <div style={{ fontSize:14, fontWeight:800, color:"#60a5fa" }}>📡 Flō Site Survey</div>
+          <div style={{ fontSize:13, fontWeight:800, color:"#60a5fa" }}>📡 Flō Site Survey</div>
           <div style={{ fontSize:10, color:"#4b5563" }}>
-            <span style={{ color:"#a5b4fc" }}>{project}</span> · {elements.length} elementos
+            <span style={{ color:"#a5b4fc" }}>{project}</span> · {elements.length} elem · {connections.length} conex
           </div>
         </div>
-        <div style={{ display:"flex", gap:6 }}>
-          <button onClick={() => { setConnectMode(!connectMode); setConnA(null); }}
-            style={{ background:connectMode?"#4f46e5":"#1f2937", color:connectMode?"#fff":"#9ca3af", border:`1px solid ${connectMode?"#6366f1":"#374151"}`, borderRadius:6, padding:"6px 10px", cursor:"pointer", fontSize:12, fontWeight:600 }}>
-            {connectMode ? (connA ? "🔗 Click elemento B…" : "🔗 Click elemento A…") : "🔗 Conectar"}
+        <div style={{ display:"flex", gap:5, flexWrap:"wrap", justifyContent:"flex-end" }}>
+          {gpsStatus==="active" && (
+            <button onClick={handleCaptureGPS}
+              style={{ background:"#064e3b", color:"#34d399", border:"1px solid #059669", borderRadius:6, padding:"5px 9px", cursor:"pointer", fontSize:11, fontWeight:700 }}>
+              📌 Capturar
+            </button>
+          )}
+          <button onClick={()=>{ if(connectMode){setConnectMode(false);setConnectFrom(null);}else{setConnectMode(true);setPendingCoords(null);setAddingType(null);} }}
+            className={connectMode?"line-mode-active":""}
+            style={{ background:connectMode?"#78350f":"#1f2937", color:connectMode?"#fbbf24":"#9ca3af", border:`1px solid ${connectMode?"#fbbf24":"#374151"}`, borderRadius:6, padding:"5px 9px", cursor:"pointer", fontSize:11, fontWeight:700 }}>
+            {connectMode?"✕ Conectar":"🔗 Conectar"}
           </button>
-          <button onClick={toggleGPS}
-            style={{ background:gpsActive?"#065f46":"#1f2937", color:gpsActive?"#34d399":"#9ca3af", border:`1px solid ${gpsActive?"#059669":"#374151"}`, borderRadius:6, padding:"6px 10px", cursor:"pointer", fontSize:12, fontWeight:600 }}>
-            {gpsActive ? "🟢 GPS" : "📍 GPS"}
+          <button onClick={handleGPSButtonClick}
+            style={{ background:gpsBg, color:gpsColor, border:`1px solid ${gpsBorder}`, borderRadius:6, padding:"5px 9px", cursor:"pointer", fontSize:11, fontWeight:700, minWidth:72 }}>
+            {gpsLabel}
           </button>
         </div>
       </div>
-      {gpsError && <div style={{ background:"#7f1d1d", color:"#fca5a5", fontSize:11, padding:"6px 14px", flexShrink:0 }}>⚠️ {gpsError}</div>}
-      {userPos   && <div style={{ background:"#064e3b", color:"#6ee7b7", fontSize:10, padding:"4px 14px", flexShrink:0 }}>📍 {userPos.lat.toFixed(6)}, {userPos.lng.toFixed(6)} · ±{Math.round(userPos.acc)}m</div>}
-      {connectMode && <div style={{ background:"#1e1b4b", color:"#a5b4fc", fontSize:11, padding:"6px 14px", flexShrink:0 }}>🔗 Modo conexión activo · {connA ? `Elemento A: ${elements.find(e=>e.id===connA)?.nombre} — ahora toca Elemento B en el mapa` : "Toca el primer elemento en el mapa"}</div>}
 
-      {/* MAIN */}
+      {/* Status bars */}
+      {connectMode && (
+        <div style={{ background:"#78350f", color:"#fbbf24", fontSize:11, padding:"5px 14px", flexShrink:0 }}>
+          🔗 {!connectFrom ? "Toca el primer elemento en el mapa" : `Desde: ${elements.find(e=>e.id===connectFrom)?.nombre} → toca el segundo elemento`}
+        </div>
+      )}
+      {gpsStatus==="requesting" && <div style={{ background:"#1a2e05", color:"#a3e635", fontSize:11, padding:"4px 14px", flexShrink:0 }}>🛰️ Solicitando permiso GPS…</div>}
+      {gpsStatus==="active" && userPos && (
+        <div style={{ background:"#064e3b", color:"#6ee7b7", fontSize:10, padding:"3px 14px", flexShrink:0, display:"flex", justifyContent:"space-between" }}>
+          <span>📍 {userPos.lat.toFixed(6)}, {userPos.lng.toFixed(6)}</span>
+          <span>±{Math.round(userPos.acc)}m</span>
+        </div>
+      )}
+      {gpsError && gpsStatus!=="denied" && <div style={{ background:"#7f1d1d", color:"#fca5a5", fontSize:11, padding:"4px 14px", flexShrink:0 }}>⚠️ {gpsError}</div>}
+
+      {/* Main */}
       <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
 
-        {/* LEFT PANEL */}
-        <div style={{ width:300, minWidth:300, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1f2937", overflow:"hidden" }}>
-
-          {/* Tabs */}
+        {/* Left Panel */}
+        <div className="left-panel" style={{ width:290, minWidth:290, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1f2937", overflow:"hidden" }}>
           <div style={{ display:"flex", borderBottom:"1px solid #1f2937", flexShrink:0 }}>
             {[["map","🗺️ Mapa"],["data","📊 Datos"],["export","📤 Export"]].map(([k,l])=>(
-              <button key={k} onClick={() => setTab(k)} style={{ flex:1, padding:"9px 0", background:tab===k?"#1f2937":"transparent", color:tab===k?"#60a5fa":"#6b7280", border:"none", cursor:"pointer", fontSize:11, fontWeight:600 }}>{l}</button>
+              <button key={k} onClick={()=>setTab(k)} style={{ flex:1, padding:"8px 0", background:tab===k?"#1f2937":"transparent", color:tab===k?"#60a5fa":"#6b7280", border:"none", cursor:"pointer", fontSize:11, fontWeight:600 }}>{l}</button>
             ))}
           </div>
 
-          <div style={{ flex:1, overflowY:"auto", padding: tab==="data" ? 0 : 12 }}>
+          <div style={{ flex:1, overflowY:"auto", padding: tab==="data" ? 0 : 10 }}>
 
-            {/* MAP TAB */}
-            {tab === "map" && <>
-              <AIPanel onAddElement={handleAIAdd} lastCoords={lastCoords} project={project} />
+            {tab==="map" && <>
+              <AIPanel onAddElement={handleAIAdd} lastCoords={lastCoords} />
 
-              {pendingCoords ? (
+              {gpsStatus==="active" && !pendingCoords && !addingType && !connectMode && (
+                <button onClick={handleCaptureGPS}
+                  style={{ width:"100%", marginBottom:10, background:"#064e3b", color:"#34d399", border:"1px solid #059669", borderRadius:8, padding:"9px 0", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+                  📌 Usar mi ubicación GPS actual
+                </button>
+              )}
+
+              {pendingCoords && !addingType && (
                 <div>
-                  <div style={{ color:"#a3e635", fontSize:12, marginBottom:8, background:"#1a2e05", borderRadius:6, padding:"6px 10px" }}>
-                    📌 {pendingCoords.lat.toFixed(6)}, {pendingCoords.lng.toFixed(6)}
+                  <div style={{ color:"#a3e635", fontSize:11, marginBottom:7, background:"#1a2e05", borderRadius:6, padding:"5px 10px" }}>
+                    📌 {pendingCoords.lat.toFixed(5)}, {pendingCoords.lng.toFixed(5)}
                   </div>
-                  <div style={{ color:"#94a3b8", fontSize:11, marginBottom:8 }}>Selecciona el tipo de elemento:</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
-                    {Object.entries(ELEMENT_TYPES).map(([k, v]) => (
-                      <button key={k} onClick={() => setAddingType(k)} style={{ background:addingType===k?"#1d4ed8":"#1f2937", border:`1px solid ${addingType===k?"#3b82f6":"#374151"}`, borderRadius:6, padding:"8px 6px", cursor:"pointer", color:"#e2e8f0", fontSize:11, display:"flex", alignItems:"center", gap:5 }}>
-                        <span style={{ width:8, height:8, borderRadius:"50%", background:v.color }} />
-                        <span>{v.icon}</span><span>{v.label}</span>
+                  <div style={{ color:"#94a3b8", fontSize:11, marginBottom:6 }}>Tipo de elemento:</div>
+                  <div className="type-grid">
+                    {Object.entries(ELEMENT_TYPES).map(([k,v]) => (
+                      <button key={k} onClick={()=>setAddingType(k)}
+                        style={{ background:"#1f2937", border:"1px solid #374151", borderRadius:8, padding:"10px 6px", cursor:"pointer", color:"#e2e8f0", display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                        <span style={{ fontSize:22 }}>{v.icon}</span>
+                        <span style={{ fontSize:11 }}>{v.label}</span>
                       </button>
                     ))}
                   </div>
-                  <button onClick={() => { setPendingCoords(null); setAddingType(null); }}
-                    style={{ width:"100%", marginTop:8, ...btnStyle("#1f2937","#6b7280"), border:"1px solid #374151" }}>✕ Cancelar</button>
-                </div>
-              ) : !connectMode && (
-                <div style={{ color:"#374151", fontSize:12, textAlign:"center", padding:"20px 0", border:"1px dashed #1f2937", borderRadius:8 }}>
-                  👆 Toca el mapa para agregar un elemento
+                  <button onClick={()=>{setPendingCoords(null);setAddingType(null);}}
+                    style={{ width:"100%", marginTop:8, background:"#1f2937", color:"#6b7280", border:"1px solid #374151", borderRadius:6, padding:"6px 0", cursor:"pointer", fontSize:12 }}>✕ Cancelar</button>
                 </div>
               )}
 
-              {/* Form */}
+              {!pendingCoords && !addingType && (
+                <div style={{ color:"#374151", fontSize:12, textAlign:"center", padding:"14px 0", border:"1px dashed #1f2937", borderRadius:8 }}>
+                  {connectMode ? "🔗 Toca un elemento en el mapa" : "👆 Toca el mapa · o usa el botón GPS"}
+                </div>
+              )}
+
               {addingType && pendingCoords && (
-                <div style={{ marginTop:12, background:"#0d1117", border:"1px solid #374151", borderRadius:8, padding:12 }}>
+                <div style={{ marginTop:8, background:"#0d1117", border:"1px solid #374151", borderRadius:8, padding:10 }}>
                   <ElementForm
                     type={addingType} project={project} elements={elements}
                     onSave={(nombre, attrs, photos) => addElement(addingType, pendingCoords, nombre, attrs, photos)}
-                    onCancel={() => { setAddingType(null); setPendingCoords(null); }}
+                    onCancel={()=>{setAddingType(null);setPendingCoords(null);}}
                   />
                 </div>
               )}
 
-              {/* Selected element detail */}
               {selected && !addingType && (
-                <div style={{ marginTop:12, background:"#0d1117", border:"1px solid #374151", borderRadius:8, padding:12 }}>
-                  {editingId === selected.id ? (
+                <div style={{ marginTop:8, background:"#0d1117", border:"1px solid #374151", borderRadius:8, padding:10 }}>
+                  {editingId===selected.id ? (
                     <ElementForm
-                      type={selected.type} project={project} elements={elements.filter(e => e.id !== selected.id)}
-                      initial={selected.attrs} initialPhotos={selected.photos} initialNombre={selected.nombre}
-                      onSave={(nombre, attrs, photos) => updateElement(selected.id, nombre, attrs, photos)}
-                      onCancel={() => setEditingId(null)}
+                      type={selected.type} project={project} elements={elements.filter(e=>e.id!==selected.id)}
+                      initial={selected.attrs} initialPhotos={selected.photos||[]} initialNombre={selected.nombre}
+                      onSave={(nombre,attrs,photos)=>updateElement(selected.id,nombre,attrs,photos)}
+                      onCancel={()=>setEditingId(null)}
                     />
                   ) : (
                     <>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                        <span style={{ fontWeight:700, color:"#e2e8f0" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                        <span style={{ fontWeight:700, color:"#e2e8f0", fontSize:13 }}>
                           {ELEMENT_TYPES[selected.type]?.icon} {selected.nombre}
                         </span>
                         <div style={{ display:"flex", gap:4 }}>
-                          <button onClick={() => setEditingId(selected.id)} style={{ ...btnStyle("#1d4ed8"), padding:"3px 7px" }}>✏️</button>
-                          <button onClick={() => deleteElement(selected.id)} style={{ ...btnStyle("#991b1b"), padding:"3px 7px" }}>🗑️</button>
+                          <button onClick={()=>setEditingId(selected.id)} style={miniBtn("#1d4ed8")}>✏️</button>
+                          <button onClick={()=>deleteElement(selected.id)} style={miniBtn("#991b1b")}>🗑️</button>
                         </div>
                       </div>
-                      <div style={{ fontSize:11, color:"#7c8db0", marginBottom:6 }}>{selected.lat.toFixed(6)}, {selected.lng.toFixed(6)}</div>
-                      {Object.entries(selected.attrs || {}).filter(([, v]) => v !== "" && v !== false).map(([k, v]) => (
-                        <div key={k} style={{ fontSize:12, color:"#94a3b8", marginBottom:2 }}>
-                          <span style={{ color:"#4b5563" }}>{k}:</span> {String(v)}
-                        </div>
+                      {selected.attrs?.condicion && (
+                        <span style={{ fontSize:10, background:selected.attrs.condicion==="Nuevo a Instalar"?"#14532d":"#1f2937", color:selected.attrs.condicion==="Nuevo a Instalar"?"#86efac":"#94a3b8", borderRadius:4, padding:"2px 7px", display:"inline-block", marginBottom:5 }}>
+                          {selected.attrs.condicion}
+                        </span>
+                      )}
+                      <div style={{ fontSize:10, color:"#7c8db0", marginBottom:4 }}>{selected.lat.toFixed(6)}, {selected.lng.toFixed(6)}</div>
+                      {Object.entries(selected.attrs||{}).filter(([k,v])=>v!==""&&v!==false&&k!=="condicion").map(([k,v])=>(
+                        <div key={k} style={{ fontSize:11, color:"#94a3b8", marginBottom:2 }}><span style={{ color:"#4b5563" }}>{k}:</span> {String(v)}</div>
                       ))}
-                      {/* Photos */}
                       {selected.photos?.length > 0 && (
-                        <div style={{ marginTop:8 }}>
-                          <div style={{ color:"#4b5563", fontSize:11, marginBottom:4 }}>📷 Fotos ({selected.photos.length})</div>
-                          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                            {selected.photos.map((p, i) => (
-                              <img key={i} src={p.dataUrl} alt={p.name} style={{ width:56, height:56, objectFit:"cover", borderRadius:6, border:"1px solid #374151" }} />
+                        <div style={{ marginTop:6 }}>
+                          <div style={{ color:"#4b5563", fontSize:11, marginBottom:4 }}>📷 {selected.photos.length} foto(s)</div>
+                          <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                            {selected.photos.map((p,i) => (
+                              <img key={i} src={p.dataUrl} alt={p.name} style={{ width:54, height:54, objectFit:"cover", borderRadius:5, border:"1px solid #374151" }} />
                             ))}
                           </div>
                         </div>
                       )}
-                      <div style={{ fontSize:10, color:"#374151", marginTop:6 }}>{selected.timestamp}</div>
+                      <div style={{ fontSize:10, color:"#374151", marginTop:5 }}>{selected.timestamp}</div>
                     </>
                   )}
                 </div>
               )}
 
               {/* Layer toggles */}
-              <div style={{ marginTop:16 }}>
-                <div style={{ color:"#4b5563", fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:8 }}>CAPAS</div>
-                {Object.entries(ELEMENT_TYPES).map(([k, v]) => (
-                  <div key={k} onClick={() => setVisibleTypes(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k])}
-                    style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 6px", borderRadius:6, cursor:"pointer", background:visibleTypes.includes(k)?"#1f2937":"transparent", marginBottom:3 }}>
-                    <span style={{ width:12, height:12, borderRadius:"50%", background:visibleTypes.includes(k)?v.color:"#374151", display:"inline-block" }} />
+              <div style={{ marginTop:12 }}>
+                <div style={{ color:"#4b5563", fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:5 }}>CAPAS</div>
+                {Object.entries(ELEMENT_TYPES).map(([k,v]) => (
+                  <div key={k} onClick={()=>setVisibleTypes(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
+                    style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 6px", borderRadius:6, cursor:"pointer", background:visibleTypes.includes(k)?"#1f2937":"transparent", marginBottom:2 }}>
+                    <span style={{ width:11, height:11, borderRadius:"50%", background:visibleTypes.includes(k)?v.color:"#374151", display:"inline-block", flexShrink:0 }} />
                     <span style={{ fontSize:12, color:visibleTypes.includes(k)?"#e2e8f0":"#4b5563" }}>{v.label}</span>
                     <span style={{ marginLeft:"auto", fontSize:11, color:"#4b5563" }}>{counts[k]}</span>
                   </div>
                 ))}
-                {/* Connection type legend */}
-                <div style={{ marginTop:10, borderTop:"1px solid #1f2937", paddingTop:10 }}>
-                  <div style={{ color:"#4b5563", fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:6 }}>CONEXIONES</div>
+                <div style={{ marginTop:8, borderTop:"1px solid #1f2937", paddingTop:8 }}>
+                  <div style={{ color:"#4b5563", fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:5 }}>CONEXIONES</div>
                   {[["Aerial Route","#F97316"],["ADSS","#A78BFA"],["Ducto","#34D399"]].map(([t,c])=>(
-                    <div key={t} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
-                      <span style={{ width:24, height:2, background:c, display:"inline-block", borderRadius:2 }} />
-                      <span style={{ fontSize:11, color:"#94a3b8" }}>{t}</span>
-                      <span style={{ marginLeft:"auto", fontSize:11, color:"#4b5563" }}>{connections.filter(c2=>c2.tipo===t).length}</span>
+                    <div key={t} style={{ display:"flex", alignItems:"center", gap:8, padding:"3px 6px", marginBottom:2 }}>
+                      <span style={{ width:20, height:2, background:c, display:"inline-block", borderRadius:2, flexShrink:0 }} />
+                      <span style={{ fontSize:11, color:"#6b7280" }}>{t}</span>
+                      <span style={{ marginLeft:"auto", fontSize:11, color:"#4b5563" }}>{connections.filter(cx=>cx.tipo===t).length}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </>}
 
-            {/* DATA TAB */}
-            {tab === "data" && (
-              <DataTab elements={elements} connections={connections} setElements={setElements} setConnections={setConnections} project={project} />
+            {tab==="data" && (
+              <DataTab elements={elements} connections={connections} setElements={setElements} setConnections={setConnections} />
             )}
 
-            {/* EXPORT TAB */}
-            {tab === "export" && <>
+            {tab==="export" && <>
               <div style={{ background:"#0d1117", border:"1px solid #1f2937", borderRadius:8, padding:12, marginBottom:12 }}>
                 <div style={{ color:"#7c8db0", fontSize:11, fontWeight:700, marginBottom:8 }}>PROYECTO: {project}</div>
-                {Object.entries(ELEMENT_TYPES).map(([k, v]) => counts[k] > 0 && (
-                  <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"#94a3b8", marginBottom:4 }}>
-                    <span>{v.icon} {v.label}</span>
-                    <span style={{ color:"#60a5fa", fontWeight:700 }}>{counts[k]}</span>
+                {Object.entries(ELEMENT_TYPES).map(([k,v])=>counts[k]>0&&(
+                  <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"#94a3b8", marginBottom:3 }}>
+                    <span>{v.icon} {v.label}</span><span style={{ color:"#60a5fa", fontWeight:700 }}>{counts[k]}</span>
                   </div>
                 ))}
                 <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"#94a3b8", marginTop:6, borderTop:"1px solid #1f2937", paddingTop:6 }}>
-                  <span>🔗 Conexiones</span>
-                  <span style={{ color:"#60a5fa", fontWeight:700 }}>{connections.length}</span>
+                  <span>🔗 Conexiones</span><span style={{ color:"#60a5fa", fontWeight:700 }}>{connections.length}</span>
                 </div>
-                {elements.length === 0 && <div style={{ color:"#374151", fontSize:12 }}>Sin elementos aún</div>}
+                {elements.length===0 && <div style={{ color:"#374151", fontSize:12, marginTop:4 }}>Sin elementos aún</div>}
               </div>
               <div style={{ color:"#4b5563", fontSize:11, marginBottom:8, fontWeight:700, letterSpacing:1 }}>FORMATO</div>
-              {["GeoJSON","KML","CSV"].map(f => (
-                <div key={f} onClick={() => setExportFmt(f)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:6, cursor:"pointer", background:exportFmt===f?"#1f2937":"transparent", marginBottom:4, border:`1px solid ${exportFmt===f?"#4f46e5":"transparent"}` }}>
-                  <span style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${exportFmt===f?"#4f46e5":"#374151"}`, background:exportFmt===f?"#4f46e5":"transparent" }} />
+              {EXPORT_FORMATS.map(f=>(
+                <div key={f} onClick={()=>setExportFmt(f)}
+                  style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:6, cursor:"pointer", background:exportFmt===f?"#1f2937":"transparent", marginBottom:4, border:`1px solid ${exportFmt===f?"#4f46e5":"transparent"}` }}>
+                  <span style={{ width:13, height:13, borderRadius:"50%", border:`2px solid ${exportFmt===f?"#4f46e5":"#374151"}`, background:exportFmt===f?"#4f46e5":"transparent", flexShrink:0 }} />
                   <div>
                     <div style={{ fontSize:13, fontWeight:600, color:exportFmt===f?"#a5b4fc":"#e2e8f0" }}>{f}</div>
-                    <div style={{ fontSize:10, color:"#4b5563" }}>{{ GeoJSON:"QGIS · ArcGIS · PostGIS", KML:"Google Earth · Maps", CSV:"Excel · ClicData (incluye conexiones)" }[f]}</div>
+                    <div style={{ fontSize:10, color:"#4b5563" }}>{{GeoJSON:"QGIS · ArcGIS · PostGIS",KML:"Google Earth · Maps",CSV:"Excel · ClicData (incluye conexiones)"}[f]}</div>
                   </div>
                 </div>
               ))}
-              <button onClick={handleExport} disabled={elements.length === 0}
-                style={{ width:"100%", marginTop:12, ...btnStyle(elements.length?"#4f46e5":"#1f2937", elements.length?"#fff":"#4b5563"), padding:"10px 0", fontSize:14 }}>
+              <button onClick={handleExport} disabled={elements.length===0}
+                style={{ width:"100%", marginTop:12, background:elements.length?"#4f46e5":"#1f2937", color:elements.length?"#fff":"#4b5563", border:"none", borderRadius:8, padding:"10px 0", cursor:elements.length?"pointer":"default", fontSize:14, fontWeight:700 }}>
                 ⬇️ Descargar {exportFmt}
               </button>
             </>}
           </div>
         </div>
 
-        {/* MAP */}
+        {/* Map */}
         <div style={{ flex:1, position:"relative" }}>
           <MapView
             elements={elements}
             connections={connections}
             onMapClick={handleMapClick}
             selectedId={selectedId}
-            onSelectElement={handleSelectElement}
+            onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
             visibleTypes={visibleTypes}
             userPos={userPos}
             pendingCoords={pendingCoords}
+            connectMode={connectMode}
+            connectFromId={connectFrom}
+            onSelectForConnect={handleSelectForConnect}
           />
         </div>
       </div>
     </div>
   );
 }
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
 </body>
 </html>
