@@ -487,6 +487,7 @@ function DataTab({ elements, connections, setElements, setConnections }) {
   const [editingEl,   setEditingEl]   = useState(null);
   const [editingConn, setEditingConn] = useState(null);
   const [newConn,     setNewConn]     = useState({ a:"", b:"", tipo:"" });
+  const [activeTable, setActiveTable] = useState("elements"); // "elements" | "connections"
 
   function handleElNombreChange(id, nombre) { setElements(prev => prev.map(e => e.id === id ? { ...e, nombre } : e)); }
   function handleElAttrChange(id, key, val) { setElements(prev => prev.map(e => e.id === id ? { ...e, attrs:{ ...e.attrs, [key]:val } } : e)); }
@@ -494,207 +495,272 @@ function DataTab({ elements, connections, setElements, setConnections }) {
 
   function addConnection() {
     if (!newConn.a || !newConn.b || newConn.a === newConn.b) return;
-    const elA      = elements.find(e => e.id === newConn.a);
-    const elB      = elements.find(e => e.id === newConn.b);
+    const elA       = elements.find(e => e.id === newConn.a);
+    const elB       = elements.find(e => e.id === newConn.b);
     const distancia = haversineMeters(elA.lat, elA.lng, elB.lat, elB.lng);
     const tipo      = newConn.tipo || inferConnectionType(elA.type, elB.type);
     setConnections(prev => [...prev, { id:generateId(), a:newConn.a, b:newConn.b, tipo, infraestructura:"existente", distancia, timestamp:new Date().toISOString(), automatica:false }]);
     setNewConn({ a:"", b:"", tipo:"" });
   }
-  function updateConnTipo(id, tipo)          { setConnections(prev => prev.map(c => c.id === id ? { ...c, tipo } : c)); }
-  function updateConnInfra(id, infraestructura) { setConnections(prev => prev.map(c => c.id === id ? { ...c, infraestructura } : c)); }
+  function updateConnField(id, field, val) { setConnections(prev => prev.map(c => c.id === id ? { ...c, [field]: val } : c)); }
   function deleteConn(id) { setConnections(prev => prev.filter(c => c.id !== id)); }
 
-  const thStyle = { color:"#94a3b8", fontSize:11, fontWeight:700, padding:"8px 10px", textAlign:"left", borderBottom:"1px solid #1f2937", background:"#0d1117", whiteSpace:"nowrap" };
-  const tdStyle = { color:"#e2e8f0", fontSize:12, padding:"6px 10px", borderBottom:"1px solid #1a2035", verticalAlign:"middle" };
+  const thStyle = { color:"#94a3b8", fontSize:11, fontWeight:700, padding:"7px 10px", textAlign:"left", borderBottom:"1px solid #1f2937", background:"#070a0f", whiteSpace:"nowrap", position:"sticky", top:0, zIndex:1 };
+  const tdStyle = { color:"#e2e8f0", fontSize:11, padding:"5px 8px", borderBottom:"1px solid #131825", verticalAlign:"middle" };
+
+  // Build unified columns for ALL element types: nombre + type + all unique field keys + lat/lng
+  const allFieldKeys = [];
+  Object.values(ELEMENT_TYPES).forEach(def => {
+    def.fields.forEach(f => { if (!allFieldKeys.find(x=>x.key===f.key)) allFieldKeys.push(f); });
+  });
+
+  const connColors = { "Aerial Route":"#F97316","ADSS":"#A78BFA","Ducto":"#34D399" };
 
   return (
-    <div style={{ padding:12 }}>
-      {/* Elements section */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-        <span style={{ fontSize:16 }}>📋</span>
-        <span style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>Elementos Registrados</span>
-        <span style={{ marginLeft:"auto", background:"#1f2937", color:"#60a5fa", borderRadius:10, padding:"2px 8px", fontSize:11 }}>{elements.length}</span>
-      </div>
-      <div style={{ overflowX:"auto", marginBottom:20, borderRadius:8, border:"1px solid #1f2937" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:560 }}>
-          <thead>
-            <tr>
-              <th style={thStyle}>#</th>
-              <th style={thStyle}>Nombre</th>
-              <th style={thStyle}>Tipo</th>
-              <th style={thStyle}>Condición</th>
-              <th style={thStyle}>Coords</th>
-              <th style={thStyle}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {elements.length === 0 && (
-              <tr><td colSpan={6} style={{ ...tdStyle, color:"#374151", textAlign:"center", padding:20 }}>Sin elementos capturados</td></tr>
-            )}
-            {elements.map((el, i) => {
-              const def      = ELEMENT_TYPES[el.type];
-              const isEditing = editingEl === el.id;
-              return (
-                <tr key={el.id} style={{ background: i%2===0 ? "#0a0d14" : "#0d1117" }}>
-                  <td style={{ ...tdStyle, color:"#4b5563", width:28 }}>{i}</td>
-                  <td style={tdStyle}>
-                    {isEditing
-                      ? <input value={el.nombre} onChange={e => handleElNombreChange(el.id, e.target.value)} style={{ ...inputStyle, width:130 }} />
-                      : <span style={{ display:"flex", alignItems:"center", gap:6 }}>
-                          <span style={{ width:9, height:9, borderRadius:"50%", background:def.color, flexShrink:0 }} />
-                          <span style={{ fontSize:11 }}>{el.nombre}</span>
-                        </span>
-                    }
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ background:def.color+"22", color:def.color, borderRadius:4, padding:"2px 6px", fontSize:11, whiteSpace:"nowrap" }}>
-                      {def.icon} {def.label}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    {isEditing
-                      ? <select value={el.attrs?.condicion||""} onChange={e => handleElAttrChange(el.id,"condicion",e.target.value)} style={{ ...inputStyle, width:130 }}>
-                          <option value="">--</option><option>Existente</option><option>Nuevo a Instalar</option>
-                        </select>
-                      : <span style={{ fontSize:11, color:"#94a3b8" }}>{el.attrs?.condicion||"—"}</span>
-                    }
-                  </td>
-                  <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{el.lat.toFixed(4)}, {el.lng.toFixed(4)}</td>
-                  <td style={tdStyle}>
-                    <div style={{ display:"flex", gap:4 }}>
-                      <button onClick={() => setEditingEl(isEditing ? null : el.id)} style={{ ...miniBtn(isEditing?"#059669":"#1d4ed8"), padding:"3px 7px" }}>{isEditing?"✓":"✏️"}</button>
-                      <button onClick={() => deleteEl(el.id)} style={{ ...miniBtn("#991b1b"), padding:"3px 7px" }}>🗑️</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", background:"#0d1117" }}>
+      {/* Sub-tabs */}
+      <div style={{ display:"flex", borderBottom:"1px solid #1f2937", flexShrink:0, background:"#111827" }}>
+        <button onClick={()=>setActiveTable("elements")}
+          style={{ flex:1, padding:"9px 0", background:activeTable==="elements"?"#1f2937":"transparent", color:activeTable==="elements"?"#60a5fa":"#6b7280", border:"none", cursor:"pointer", fontSize:12, fontWeight:600 }}>
+          📋 Elementos ({elements.length})
+        </button>
+        <button onClick={()=>setActiveTable("connections")}
+          style={{ flex:1, padding:"9px 0", background:activeTable==="connections"?"#1f2937":"transparent", color:activeTable==="connections"?"#60a5fa":"#6b7280", border:"none", cursor:"pointer", fontSize:12, fontWeight:600 }}>
+          🔗 Conexiones ({connections.length})
+        </button>
       </div>
 
-      {/* Connections section */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-        <span style={{ fontSize:16 }}>🔗</span>
-        <span style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>Conexiones</span>
-        <span style={{ marginLeft:"auto", background:"#1f2937", color:"#60a5fa", borderRadius:10, padding:"2px 8px", fontSize:11 }}>{connections.length}</span>
-      </div>
+      {/* ── ELEMENTS TABLE ── */}
+      {activeTable === "elements" && (
+        <div style={{ flex:1, overflowX:"auto", overflowY:"auto" }}>
+          <table style={{ borderCollapse:"collapse", fontSize:11, whiteSpace:"nowrap" }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>#</th>
+                <th style={thStyle}>Nombre</th>
+                <th style={thStyle}>Tipo</th>
+                <th style={thStyle}>Lat</th>
+                <th style={thStyle}>Lng</th>
+                {allFieldKeys.map(f => <th key={f.key} style={thStyle}>{f.label}</th>)}
+                <th style={{ ...thStyle, position:"sticky", right:0, background:"#070a0f", zIndex:2 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {elements.length === 0 && (
+                <tr><td colSpan={5+allFieldKeys.length+1} style={{ ...tdStyle, color:"#374151", textAlign:"center", padding:24 }}>Sin elementos capturados</td></tr>
+              )}
+              {elements.map((el, i) => {
+                const def       = ELEMENT_TYPES[el.type];
+                const isEditing = editingEl === el.id;
+                const rowBg     = i%2===0 ? "#0a0d14" : "#0d1117";
+                return (
+                  <tr key={el.id} style={{ background: rowBg }}>
+                    <td style={{ ...tdStyle, color:"#4b5563", width:28 }}>{i}</td>
+                    {/* Nombre */}
+                    <td style={{ ...tdStyle, minWidth:130 }}>
+                      {isEditing
+                        ? <input value={el.nombre} onChange={e=>handleElNombreChange(el.id,e.target.value)} style={{ ...inputStyle, width:120, fontSize:11 }} />
+                        : <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                            <span style={{ width:8, height:8, borderRadius:"50%", background:def.color, flexShrink:0 }} />
+                            {el.nombre}
+                          </span>
+                      }
+                    </td>
+                    {/* Tipo badge */}
+                    <td style={tdStyle}>
+                      <span style={{ background:def.color+"22", color:def.color, borderRadius:4, padding:"2px 6px", fontSize:10, whiteSpace:"nowrap" }}>{def.icon} {def.label}</span>
+                    </td>
+                    {/* Coords */}
+                    <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{el.lat.toFixed(5)}</td>
+                    <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{el.lng.toFixed(5)}</td>
+                    {/* All field columns */}
+                    {allFieldKeys.map(f => {
+                      const fieldDef = def.fields.find(x=>x.key===f.key);
+                      const val      = el.attrs?.[f.key] ?? "";
+                      if (!isEditing) {
+                        return <td key={f.key} style={{ ...tdStyle, color: val===""?"#2d3550":"#94a3b8", maxWidth:160, overflow:"hidden", textOverflow:"ellipsis" }}>
+                          {val==="" ? <span style={{ color:"#2d3550" }}>—</span> : String(val)}
+                        </td>;
+                      }
+                      if (!fieldDef) return <td key={f.key} style={{ ...tdStyle, color:"#2d3550" }}>—</td>;
+                      if (fieldDef.type==="select") return (
+                        <td key={f.key} style={tdStyle}>
+                          <select value={val} onChange={e=>handleElAttrChange(el.id,f.key,e.target.value)} style={{ ...inputStyle, width:130, fontSize:11 }}>
+                            <option value="">--</option>
+                            {fieldDef.options.map(o=><option key={o}>{o}</option>)}
+                          </select>
+                        </td>
+                      );
+                      if (fieldDef.type==="textarea") return (
+                        <td key={f.key} style={tdStyle}>
+                          <textarea value={val} onChange={e=>handleElAttrChange(el.id,f.key,e.target.value)} style={{ ...inputStyle, width:150, fontSize:11, minHeight:40, resize:"vertical" }} />
+                        </td>
+                      );
+                      return (
+                        <td key={f.key} style={tdStyle}>
+                          <input value={val} onChange={e=>handleElAttrChange(el.id,f.key,e.target.value)} style={{ ...inputStyle, width:110, fontSize:11 }} />
+                        </td>
+                      );
+                    })}
+                    {/* Actions — sticky right */}
+                    <td style={{ ...tdStyle, position:"sticky", right:0, background:rowBg, zIndex:1 }}>
+                      <div style={{ display:"flex", gap:4 }}>
+                        <button onClick={()=>setEditingEl(isEditing?null:el.id)} style={{ ...miniBtn(isEditing?"#059669":"#1d4ed8"), padding:"3px 7px" }}>{isEditing?"✓":"✏️"}</button>
+                        <button onClick={()=>deleteEl(el.id)} style={{ ...miniBtn("#991b1b"), padding:"3px 7px" }}>🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {/* Add connection form */}
-      <div style={{ background:"#0d1117", border:"1px solid #1f2937", borderRadius:8, padding:12, marginBottom:12 }}>
-        <div style={{ color:"#7c8db0", fontSize:11, fontWeight:700, marginBottom:8 }}>+ Agregar conexión manual</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
-          <div>
-            <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:3 }}>Elemento A</label>
-            <select value={newConn.a} onChange={e => {
-              const typeA = elements.find(el=>el.id===e.target.value)?.type;
-              const typeB = elements.find(el=>el.id===newConn.b)?.type;
-              setNewConn(p => ({ ...p, a:e.target.value, tipo: typeA&&typeB ? inferConnectionType(typeA,typeB) : p.tipo }));
-            }} style={inputStyle}>
-              <option value="">-- Seleccionar --</option>
-              {elements.map(el => <option key={el.id} value={el.id}>{el.nombre}</option>)}
-            </select>
+      {/* ── CONNECTIONS TABLE ── */}
+      {activeTable === "connections" && (
+        <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+          {/* Add connection form — compact */}
+          <div style={{ background:"#111827", borderBottom:"1px solid #1f2937", padding:"10px 12px", flexShrink:0 }}>
+            <div style={{ display:"flex", gap:8, alignItems:"flex-end", flexWrap:"wrap" }}>
+              <div style={{ flex:"1 1 120px" }}>
+                <label style={{ color:"#94a3b8", fontSize:10, display:"block", marginBottom:2 }}>Elemento A</label>
+                <select value={newConn.a} onChange={e=>{
+                  const tA=elements.find(x=>x.id===e.target.value)?.type, tB=elements.find(x=>x.id===newConn.b)?.type;
+                  setNewConn(p=>({...p,a:e.target.value,tipo:tA&&tB?inferConnectionType(tA,tB):p.tipo}));
+                }} style={{ ...inputStyle, fontSize:11 }}>
+                  <option value="">-- Seleccionar --</option>
+                  {elements.map(el=><option key={el.id} value={el.id}>{el.nombre}</option>)}
+                </select>
+              </div>
+              <div style={{ flex:"1 1 120px" }}>
+                <label style={{ color:"#94a3b8", fontSize:10, display:"block", marginBottom:2 }}>Elemento B</label>
+                <select value={newConn.b} onChange={e=>{
+                  const tB=elements.find(x=>x.id===e.target.value)?.type, tA=elements.find(x=>x.id===newConn.a)?.type;
+                  setNewConn(p=>({...p,b:e.target.value,tipo:tA&&tB?inferConnectionType(tA,tB):p.tipo}));
+                }} style={{ ...inputStyle, fontSize:11 }}>
+                  <option value="">-- Seleccionar --</option>
+                  {elements.filter(el=>el.id!==newConn.a).map(el=><option key={el.id} value={el.id}>{el.nombre}</option>)}
+                </select>
+              </div>
+              <div style={{ flex:"1 1 110px" }}>
+                <label style={{ color:"#94a3b8", fontSize:10, display:"block", marginBottom:2 }}>Tipo</label>
+                <select value={newConn.tipo} onChange={e=>setNewConn(p=>({...p,tipo:e.target.value}))} style={{ ...inputStyle, fontSize:11 }}>
+                  <option value="">-- Auto --</option>
+                  {CONNECTION_TYPES.map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <button onClick={addConnection} disabled={!newConn.a||!newConn.b}
+                style={{ ...btnStyle(!newConn.a||!newConn.b?"#1f2937":"#4f46e5"), padding:"6px 16px", fontSize:12, flexShrink:0 }}>
+                + Agregar
+              </button>
+            </div>
           </div>
-          <div>
-            <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:3 }}>Elemento B</label>
-            <select value={newConn.b} onChange={e => {
-              const typeB = elements.find(el=>el.id===e.target.value)?.type;
-              const typeA = elements.find(el=>el.id===newConn.a)?.type;
-              setNewConn(p => ({ ...p, b:e.target.value, tipo: typeA&&typeB ? inferConnectionType(typeA,typeB) : p.tipo }));
-            }} style={inputStyle}>
-              <option value="">-- Seleccionar --</option>
-              {elements.filter(el=>el.id!==newConn.a).map(el => <option key={el.id} value={el.id}>{el.nombre}</option>)}
-            </select>
+
+          {/* Connections table */}
+          <div style={{ flex:1, overflowX:"auto", overflowY:"auto" }}>
+            <table style={{ borderCollapse:"collapse", fontSize:11, whiteSpace:"nowrap" }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>#</th>
+                  <th style={thStyle}>Elemento A</th>
+                  <th style={thStyle}>Elemento B</th>
+                  <th style={thStyle}>Tipo construcción</th>
+                  <th style={thStyle}>Infraestructura</th>
+                  <th style={thStyle}>Distancia (m)</th>
+                  <th style={thStyle}>Fecha</th>
+                  <th style={thStyle}>Auto</th>
+                  <th style={{ ...thStyle, position:"sticky", right:0, background:"#070a0f", zIndex:2 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {connections.length === 0 && (
+                  <tr><td colSpan={9} style={{ ...tdStyle, color:"#374151", textAlign:"center", padding:24 }}>Sin conexiones. Usa el botón 🔗 Conectar en el mapa o agrégalas aquí.</td></tr>
+                )}
+                {connections.map((c, i) => {
+                  const elA       = elements.find(e=>e.id===c.a);
+                  const elB       = elements.find(e=>e.id===c.b);
+                  const isEditing = editingConn === c.id;
+                  const rowBg     = i%2===0 ? "#0a0d14" : "#0d1117";
+                  return (
+                    <tr key={c.id} style={{ background: rowBg }}>
+                      <td style={{ ...tdStyle, color:"#4b5563" }}>{i}</td>
+                      {/* Elem A */}
+                      <td style={{ ...tdStyle, minWidth:120 }}>
+                        {isEditing
+                          ? <select value={c.a} onChange={e=>{
+                              const tA=elements.find(x=>x.id===e.target.value)?.type, tB=elements.find(x=>x.id===c.b)?.type;
+                              updateConnField(c.id,"a",e.target.value);
+                              if(tA&&tB) updateConnField(c.id,"tipo",inferConnectionType(tA,tB));
+                              const elNew=elements.find(x=>x.id===e.target.value), elB2=elements.find(x=>x.id===c.b);
+                              if(elNew&&elB2) updateConnField(c.id,"distancia",haversineMeters(elNew.lat,elNew.lng,elB2.lat,elB2.lng));
+                            }} style={{ ...inputStyle, width:130, fontSize:11 }}>
+                              {elements.map(el=><option key={el.id} value={el.id}>{el.nombre}</option>)}
+                            </select>
+                          : <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                              <span style={{ width:7, height:7, borderRadius:"50%", background:ELEMENT_TYPES[elA?.type]?.color, flexShrink:0 }} />
+                              {elA?.nombre||c.a.slice(0,8)}
+                            </span>
+                        }
+                      </td>
+                      {/* Elem B */}
+                      <td style={{ ...tdStyle, minWidth:120 }}>
+                        {isEditing
+                          ? <select value={c.b} onChange={e=>{
+                              const tB=elements.find(x=>x.id===e.target.value)?.type, tA=elements.find(x=>x.id===c.a)?.type;
+                              updateConnField(c.id,"b",e.target.value);
+                              if(tA&&tB) updateConnField(c.id,"tipo",inferConnectionType(tA,tB));
+                              const elA2=elements.find(x=>x.id===c.a), elNew=elements.find(x=>x.id===e.target.value);
+                              if(elA2&&elNew) updateConnField(c.id,"distancia",haversineMeters(elA2.lat,elA2.lng,elNew.lat,elNew.lng));
+                            }} style={{ ...inputStyle, width:130, fontSize:11 }}>
+                              {elements.map(el=><option key={el.id} value={el.id}>{el.nombre}</option>)}
+                            </select>
+                          : <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                              <span style={{ width:7, height:7, borderRadius:"50%", background:ELEMENT_TYPES[elB?.type]?.color, flexShrink:0 }} />
+                              {elB?.nombre||c.b.slice(0,8)}
+                            </span>
+                        }
+                      </td>
+                      {/* Tipo */}
+                      <td style={tdStyle}>
+                        {isEditing
+                          ? <select value={c.tipo} onChange={e=>updateConnField(c.id,"tipo",e.target.value)} style={{ ...inputStyle, width:130, fontSize:11 }}>
+                              {CONNECTION_TYPES.map(t=><option key={t}>{t}</option>)}
+                            </select>
+                          : <span style={{ background:(connColors[c.tipo]||"#60a5fa")+"22", color:connColors[c.tipo]||"#94a3b8", borderRadius:4, padding:"2px 6px", fontSize:10 }}>{c.tipo}</span>
+                        }
+                      </td>
+                      {/* Infraestructura */}
+                      <td style={tdStyle}>
+                        {isEditing
+                          ? <select value={c.infraestructura||"existente"} onChange={e=>updateConnField(c.id,"infraestructura",e.target.value)} style={{ ...inputStyle, width:110, fontSize:11 }}>
+                              <option value="existente">existente</option>
+                              <option value="nueva">nueva</option>
+                            </select>
+                          : <span style={{ fontSize:11, color:"#94a3b8" }}>{c.infraestructura||"existente"}</span>
+                        }
+                      </td>
+                      {/* Distancia */}
+                      <td style={{ ...tdStyle, color:"#60a5fa", fontWeight:700 }}>{c.distancia?.toFixed(2)}</td>
+                      {/* Fecha */}
+                      <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{c.timestamp?.slice(0,19).replace("T"," ")}</td>
+                      {/* Auto */}
+                      <td style={tdStyle}>{c.automatica ? <span style={{ color:"#34d399" }}>✓</span> : <span style={{ color:"#374151" }}>–</span>}</td>
+                      {/* Actions */}
+                      <td style={{ ...tdStyle, position:"sticky", right:0, background:rowBg, zIndex:1 }}>
+                        <div style={{ display:"flex", gap:4 }}>
+                          <button onClick={()=>setEditingConn(isEditing?null:c.id)} style={{ ...miniBtn(isEditing?"#059669":"#1d4ed8"), padding:"3px 7px" }}>{isEditing?"✓":"✏️"}</button>
+                          <button onClick={()=>deleteConn(c.id)} style={{ ...miniBtn("#991b1b"), padding:"3px 7px" }}>🗑️</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:8, alignItems:"end" }}>
-          <div>
-            <label style={{ color:"#94a3b8", fontSize:11, display:"block", marginBottom:3 }}>Tipo de construcción</label>
-            <select value={newConn.tipo} onChange={e => setNewConn(p=>({...p,tipo:e.target.value}))} style={inputStyle}>
-              <option value="">-- Auto --</option>
-              {CONNECTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <button onClick={addConnection} disabled={!newConn.a||!newConn.b}
-            style={{ ...btnStyle(!newConn.a||!newConn.b?"#1f2937":"#4f46e5"), padding:"6px 14px", height:32 }}>
-            + Agregar
-          </button>
-        </div>
-      </div>
-
-      {/* Connections table */}
-      <div style={{ overflowX:"auto", borderRadius:8, border:"1px solid #1f2937" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:680 }}>
-          <thead>
-            <tr>
-              <th style={thStyle}>#</th>
-              <th style={thStyle}>Elemento A</th>
-              <th style={thStyle}>Elemento B</th>
-              <th style={thStyle}>Tipo construcción</th>
-              <th style={thStyle}>Infraestructura</th>
-              <th style={thStyle}>Distancia (m)</th>
-              <th style={thStyle}>Fecha</th>
-              <th style={thStyle}>Auto</th>
-              <th style={thStyle}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {connections.length === 0 && (
-              <tr><td colSpan={9} style={{ ...tdStyle, color:"#374151", textAlign:"center", padding:20 }}>Sin conexiones</td></tr>
-            )}
-            {connections.map((c, i) => {
-              const elA        = elements.find(e => e.id === c.a);
-              const elB        = elements.find(e => e.id === c.b);
-              const connColors = { "Aerial Route":"#F97316","ADSS":"#A78BFA","Ducto":"#34D399" };
-              const isEditing  = editingConn === c.id;
-              return (
-                <tr key={c.id} style={{ background: i%2===0 ? "#0a0d14" : "#0d1117" }}>
-                  <td style={{ ...tdStyle, color:"#4b5563" }}>{i}</td>
-                  <td style={tdStyle}>
-                    <span style={{ display:"flex", alignItems:"center", gap:5 }}>
-                      <span style={{ width:7, height:7, borderRadius:"50%", background:ELEMENT_TYPES[elA?.type]?.color, flexShrink:0 }} />
-                      <span style={{ fontSize:11 }}>{elA?.nombre||c.a.slice(0,8)}</span>
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ display:"flex", alignItems:"center", gap:5 }}>
-                      <span style={{ width:7, height:7, borderRadius:"50%", background:ELEMENT_TYPES[elB?.type]?.color, flexShrink:0 }} />
-                      <span style={{ fontSize:11 }}>{elB?.nombre||c.b.slice(0,8)}</span>
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    {isEditing
-                      ? <select value={c.tipo} onChange={e=>updateConnTipo(c.id,e.target.value)} style={{ ...inputStyle, width:130 }}>
-                          {CONNECTION_TYPES.map(t=><option key={t}>{t}</option>)}
-                        </select>
-                      : <span style={{ background:connColors[c.tipo]+"22", color:connColors[c.tipo]||"#94a3b8", borderRadius:4, padding:"2px 6px", fontSize:11 }}>{c.tipo}</span>
-                    }
-                  </td>
-                  <td style={tdStyle}>
-                    {isEditing
-                      ? <select value={c.infraestructura||"existente"} onChange={e=>updateConnInfra(c.id,e.target.value)} style={{ ...inputStyle, width:110 }}>
-                          <option value="existente">existente</option>
-                          <option value="nueva">nueva</option>
-                        </select>
-                      : <span style={{ fontSize:11, color:"#94a3b8" }}>{c.infraestructura||"existente"}</span>
-                    }
-                  </td>
-                  <td style={{ ...tdStyle, color:"#60a5fa", fontWeight:700 }}>{c.distancia?.toFixed(2)}</td>
-                  <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{c.timestamp?.slice(0,19).replace("T"," ")}</td>
-                  <td style={tdStyle}>{c.automatica ? <span style={{ color:"#34d399" }}>✓</span> : <span style={{ color:"#374151" }}>–</span>}</td>
-                  <td style={tdStyle}>
-                    <div style={{ display:"flex", gap:4 }}>
-                      <button onClick={() => setEditingConn(isEditing ? null : c.id)} style={{ ...miniBtn(isEditing?"#059669":"#1d4ed8"), padding:"3px 7px" }}>{isEditing?"✓":"✏️"}</button>
-                      <button onClick={() => deleteConn(c.id)} style={{ ...miniBtn("#991b1b"), padding:"3px 7px" }}>🗑️</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      )}
     </div>
   );
 }
@@ -878,18 +944,35 @@ function App() {
       )}
       {gpsError && gpsStatus!=="denied" && <div style={{ background:"#7f1d1d", color:"#fca5a5", fontSize:11, padding:"4px 14px", flexShrink:0 }}>⚠️ {gpsError}</div>}
 
-      {/* Main */}
-      <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+      {/* Main — vertical split when data tab, horizontal otherwise */}
+      <div style={{ display:"flex", flexDirection: tab==="data" ? "column" : "row", flex:1, overflow:"hidden" }}>
 
-        {/* Left Panel */}
-        <div className="left-panel" style={{ width:290, minWidth:290, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1f2937", overflow:"hidden" }}>
-          <div style={{ display:"flex", borderBottom:"1px solid #1f2937", flexShrink:0 }}>
+        {/* Map on top (data mode) — rendered here so it stays visible */}
+        {tab === "data" && (
+          <div style={{ flex:"0 0 50%", position:"relative", borderBottom:"2px solid #1f2937" }}>
+            <MapView
+              elements={elements} connections={connections}
+              onMapClick={handleMapClick}
+              selectedId={selectedId}
+              onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
+              visibleTypes={visibleTypes} userPos={userPos} pendingCoords={pendingCoords}
+              connectMode={connectMode} connectFromId={connectFrom} onSelectForConnect={handleSelectForConnect}
+            />
+          </div>
+        )}
+
+        {/* Left panel (map/export mode) OR bottom data panel (data mode) */}
+        <div className={tab!=="data"?"left-panel":""} style={tab==="data"
+          ? { flex:"0 0 50%", display:"flex", flexDirection:"column", overflow:"hidden", background:"#0d1117" }
+          : { width:290, minWidth:290, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1f2937", overflow:"hidden" }
+        }>
+          <div style={{ display:"flex", borderBottom:"1px solid #1f2937", flexShrink:0, background:"#111827" }}>
             {[["map","🗺️ Mapa"],["data","📊 Datos"],["export","📤 Export"]].map(([k,l])=>(
               <button key={k} onClick={()=>setTab(k)} style={{ flex:1, padding:"8px 0", background:tab===k?"#1f2937":"transparent", color:tab===k?"#60a5fa":"#6b7280", border:"none", cursor:"pointer", fontSize:11, fontWeight:600 }}>{l}</button>
             ))}
           </div>
 
-          <div style={{ flex:1, overflowY:"auto", padding: tab==="data" ? 0 : 10 }}>
+          <div style={{ flex:1, overflowY: tab==="data"?"hidden":"auto", display: tab==="data"?"flex":"block", flexDirection:"column", padding: tab==="data" ? 0 : 10 }}>
 
             {tab==="map" && <>
               <AIPanel onAddElement={handleAIAdd} lastCoords={lastCoords} />
@@ -1010,6 +1093,7 @@ function App() {
               <DataTab elements={elements} connections={connections} setElements={setElements} setConnections={setConnections} />
             )}
 
+
             {tab==="export" && <>
               <div style={{ background:"#0d1117", border:"1px solid #1f2937", borderRadius:8, padding:12, marginBottom:12 }}>
                 <div style={{ color:"#7c8db0", fontSize:11, fontWeight:700, marginBottom:8 }}>PROYECTO: {project}</div>
@@ -1042,22 +1126,19 @@ function App() {
           </div>
         </div>
 
-        {/* Map */}
-        <div style={{ flex:1, position:"relative" }}>
-          <MapView
-            elements={elements}
-            connections={connections}
-            onMapClick={handleMapClick}
-            selectedId={selectedId}
-            onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
-            visibleTypes={visibleTypes}
-            userPos={userPos}
-            pendingCoords={pendingCoords}
-            connectMode={connectMode}
-            connectFromId={connectFrom}
-            onSelectForConnect={handleSelectForConnect}
-          />
-        </div>
+        {/* Map — right side for map/export tabs */}
+        {tab !== "data" && (
+          <div style={{ flex:1, position:"relative" }}>
+            <MapView
+              elements={elements} connections={connections}
+              onMapClick={handleMapClick}
+              selectedId={selectedId}
+              onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
+              visibleTypes={visibleTypes} userPos={userPos} pendingCoords={pendingCoords}
+              connectMode={connectMode} connectFromId={connectFrom} onSelectForConnect={handleSelectForConnect}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
