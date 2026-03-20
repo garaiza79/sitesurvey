@@ -369,11 +369,13 @@ function AIPanel({ onAddElement, lastCoords }) {
 }
 
 // ─── Map View ────────────────────────────────────────────────────────────────
-function MapView({ elements, connections, onMapClick, selectedId, onSelectElement, visibleTypes, userPos, pendingCoords, connectMode, connectFromId, onSelectForConnect }) {
+function MapView({ elements, connections, onMapClick, selectedId, onSelectElement, visibleTypes, userPos, pendingCoords, connectMode, connectFromId, onSelectForConnect, connectWaypoints }) {
   const mapRef     = useRef(null);
   const leafletMap = useRef(null);
   const markersRef = useRef({});
   const linesRef   = useRef([]);
+  const wpMarkersRef = useRef([]);   // waypoint dot markers
+  const previewRef   = useRef(null); // live dashed preview line
   const userMarker = useRef(null);
   const pinMarker  = useRef(null);
   const hasPanned  = useRef(false);
@@ -421,7 +423,7 @@ function MapView({ elements, connections, onMapClick, selectedId, onSelectElemen
     pinMarker.current = L.marker([pendingCoords.lat, pendingCoords.lng], { icon, zIndexOffset:900, interactive:false }).addTo(leafletMap.current);
   }, [pendingCoords]);
 
-  // Connection lines
+  // Connection lines (with waypoints support)
   useEffect(() => {
     if (!leafletMap.current) return;
     linesRef.current.forEach(l => l.remove());
@@ -432,13 +434,44 @@ function MapView({ elements, connections, onMapClick, selectedId, onSelectElemen
       const elB = elements.find(e => e.id === c.b);
       if (!elA || !elB) return;
       const color = connColors[c.tipo] || "#60a5fa";
-      const poly  = L.polyline([[elA.lat,elA.lng],[elB.lat,elB.lng]], {
+      // Build full latlng array: A → waypoints → B
+      const pts = [[elA.lat, elA.lng], ...(c.waypoints||[]).map(w=>[w.lat,w.lng]), [elB.lat, elB.lng]];
+      const poly = L.polyline(pts, {
         color, weight:2.5, opacity:0.85, dashArray: c.tipo === "Ducto" ? "6 4" : null
       }).addTo(leafletMap.current);
-      poly.bindPopup(`<b>${c.tipo}</b><br/>${elA.nombre} ↔ ${elB.nombre}<br/>${c.distancia?.toFixed(1)} m`);
+      poly.bindPopup(`<b>${c.tipo}</b><br/>${elA.nombre} ↔ ${elB.nombre}<br/>${c.distancia?.toFixed(1)} m${c.waypoints?.length ? `<br/><small>${c.waypoints.length} punto(s) intermedio(s)</small>` : ""}`);
       linesRef.current.push(poly);
     });
   }, [connections, elements]);
+
+  // Waypoint dots + live preview polyline while connecting
+  useEffect(() => {
+    if (!leafletMap.current) return;
+    // Clear old waypoint markers
+    wpMarkersRef.current.forEach(m => m.remove());
+    wpMarkersRef.current = [];
+    if (previewRef.current) { previewRef.current.remove(); previewRef.current = null; }
+    if (!connectFromId || !connectWaypoints) return;
+    const elFrom = elements.find(e => e.id === connectFromId);
+    if (!elFrom) return;
+    // Draw waypoint dot markers
+    connectWaypoints.forEach((wp, i) => {
+      const icon = L.divIcon({
+        html: `<div style="display:flex;flex-direction:column;align-items:center">
+          <div style="background:#fbbf24;width:10px;height:10px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.5)"></div>
+          <div style="width:1px;height:6px;background:#fbbf24;opacity:0.6"></div>
+        </div>`,
+        className:"", iconSize:[10,16], iconAnchor:[5,16]
+      });
+      const m = L.marker([wp.lat, wp.lng], { icon, zIndexOffset:700, interactive:false }).addTo(leafletMap.current);
+      wpMarkersRef.current.push(m);
+    });
+    // Draw dashed preview line: fromEl → waypoints (so far)
+    const pts = [[elFrom.lat, elFrom.lng], ...connectWaypoints.map(w=>[w.lat,w.lng])];
+    if (pts.length > 1) {
+      previewRef.current = L.polyline(pts, { color:"#fbbf24", weight:2, opacity:0.7, dashArray:"5 5" }).addTo(leafletMap.current);
+    }
+  }, [connectWaypoints, connectFromId, elements]);
 
   // Element markers
   useEffect(() => {
@@ -508,12 +541,6 @@ function DataTab({ elements, connections, setElements, setConnections }) {
   const thStyle = { color:"#94a3b8", fontSize:11, fontWeight:700, padding:"7px 10px", textAlign:"left", borderBottom:"1px solid #1f2937", background:"#070a0f", whiteSpace:"nowrap", position:"sticky", top:0, zIndex:1 };
   const tdStyle = { color:"#e2e8f0", fontSize:11, padding:"5px 8px", borderBottom:"1px solid #131825", verticalAlign:"middle" };
 
-  // Build unified columns for ALL element types: nombre + type + all unique field keys + lat/lng
-  const allFieldKeys = [];
-  Object.values(ELEMENT_TYPES).forEach(def => {
-    def.fields.forEach(f => { if (!allFieldKeys.find(x=>x.key===f.key)) allFieldKeys.push(f); });
-  });
-
   const connColors = { "Aerial Route":"#F97316","ADSS":"#A78BFA","Ducto":"#34D399" };
 
   return (
@@ -530,90 +557,99 @@ function DataTab({ elements, connections, setElements, setConnections }) {
         </button>
       </div>
 
-      {/* ── ELEMENTS TABLE ── */}
+      {/* ── ELEMENTS TABLE — 4 separate tables per type ── */}
       {activeTable === "elements" && (
-        <div style={{ flex:1, overflowX:"auto", overflowY:"auto" }}>
-          <table style={{ borderCollapse:"collapse", fontSize:11, whiteSpace:"nowrap" }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>#</th>
-                <th style={thStyle}>Nombre</th>
-                <th style={thStyle}>Tipo</th>
-                <th style={thStyle}>Lat</th>
-                <th style={thStyle}>Lng</th>
-                {allFieldKeys.map(f => <th key={f.key} style={thStyle}>{f.label}</th>)}
-                <th style={{ ...thStyle, position:"sticky", right:0, background:"#070a0f", zIndex:2 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {elements.length === 0 && (
-                <tr><td colSpan={5+allFieldKeys.length+1} style={{ ...tdStyle, color:"#374151", textAlign:"center", padding:24 }}>Sin elementos capturados</td></tr>
-              )}
-              {elements.map((el, i) => {
-                const def       = ELEMENT_TYPES[el.type];
-                const isEditing = editingEl === el.id;
-                const rowBg     = i%2===0 ? "#0a0d14" : "#0d1117";
-                return (
-                  <tr key={el.id} style={{ background: rowBg }}>
-                    <td style={{ ...tdStyle, color:"#4b5563", width:28 }}>{i}</td>
-                    {/* Nombre */}
-                    <td style={{ ...tdStyle, minWidth:130 }}>
-                      {isEditing
-                        ? <input value={el.nombre} onChange={e=>handleElNombreChange(el.id,e.target.value)} style={{ ...inputStyle, width:120, fontSize:11 }} />
-                        : <span style={{ display:"flex", alignItems:"center", gap:5 }}>
-                            <span style={{ width:8, height:8, borderRadius:"50%", background:def.color, flexShrink:0 }} />
-                            {el.nombre}
-                          </span>
-                      }
-                    </td>
-                    {/* Tipo badge */}
-                    <td style={tdStyle}>
-                      <span style={{ background:def.color+"22", color:def.color, borderRadius:4, padding:"2px 6px", fontSize:10, whiteSpace:"nowrap" }}>{def.icon} {def.label}</span>
-                    </td>
-                    {/* Coords */}
-                    <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{el.lat.toFixed(5)}</td>
-                    <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{el.lng.toFixed(5)}</td>
-                    {/* All field columns */}
-                    {allFieldKeys.map(f => {
-                      const fieldDef = def.fields.find(x=>x.key===f.key);
-                      const val      = el.attrs?.[f.key] ?? "";
-                      if (!isEditing) {
-                        return <td key={f.key} style={{ ...tdStyle, color: val===""?"#2d3550":"#94a3b8", maxWidth:160, overflow:"hidden", textOverflow:"ellipsis" }}>
-                          {val==="" ? <span style={{ color:"#2d3550" }}>—</span> : String(val)}
-                        </td>;
-                      }
-                      if (!fieldDef) return <td key={f.key} style={{ ...tdStyle, color:"#2d3550" }}>—</td>;
-                      if (fieldDef.type==="select") return (
-                        <td key={f.key} style={tdStyle}>
-                          <select value={val} onChange={e=>handleElAttrChange(el.id,f.key,e.target.value)} style={{ ...inputStyle, width:130, fontSize:11 }}>
-                            <option value="">--</option>
-                            {fieldDef.options.map(o=><option key={o}>{o}</option>)}
-                          </select>
-                        </td>
-                      );
-                      if (fieldDef.type==="textarea") return (
-                        <td key={f.key} style={tdStyle}>
-                          <textarea value={val} onChange={e=>handleElAttrChange(el.id,f.key,e.target.value)} style={{ ...inputStyle, width:150, fontSize:11, minHeight:40, resize:"vertical" }} />
-                        </td>
-                      );
-                      return (
-                        <td key={f.key} style={tdStyle}>
-                          <input value={val} onChange={e=>handleElAttrChange(el.id,f.key,e.target.value)} style={{ ...inputStyle, width:110, fontSize:11 }} />
-                        </td>
-                      );
-                    })}
-                    {/* Actions — sticky right */}
-                    <td style={{ ...tdStyle, position:"sticky", right:0, background:rowBg, zIndex:1 }}>
-                      <div style={{ display:"flex", gap:4 }}>
-                        <button onClick={()=>setEditingEl(isEditing?null:el.id)} style={{ ...miniBtn(isEditing?"#059669":"#1d4ed8"), padding:"3px 7px" }}>{isEditing?"✓":"✏️"}</button>
-                        <button onClick={()=>deleteEl(el.id)} style={{ ...miniBtn("#991b1b"), padding:"3px 7px" }}>🗑️</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ flex:1, overflowY:"auto", padding:12 }}>
+          {Object.entries(ELEMENT_TYPES).map(([typeKey, def]) => {
+            const typeElements = elements.filter(e => e.type === typeKey);
+            return (
+              <div key={typeKey} style={{ marginBottom:24 }}>
+                {/* Section header */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                  <span style={{ fontSize:18 }}>{def.icon}</span>
+                  <span style={{ color:def.color, fontWeight:700, fontSize:13 }}>{def.label}</span>
+                  <span style={{ background:def.color+"22", color:def.color, borderRadius:10, padding:"1px 8px", fontSize:11 }}>{typeElements.length}</span>
+                </div>
+                {typeElements.length === 0
+                  ? <div style={{ color:"#374151", fontSize:12, padding:"10px 12px", border:"1px dashed #1f2937", borderRadius:6 }}>Sin {def.label.toLowerCase()}s capturados</div>
+                  : (
+                    <div style={{ overflowX:"auto", borderRadius:8, border:"1px solid #1f2937" }}>
+                      <table style={{ borderCollapse:"collapse", fontSize:11, whiteSpace:"nowrap", width:"100%" }}>
+                        <thead>
+                          <tr>
+                            <th style={thStyle}>#</th>
+                            <th style={thStyle}>Nombre</th>
+                            <th style={thStyle}>Lat</th>
+                            <th style={thStyle}>Lng</th>
+                            {def.fields.map(f => <th key={f.key} style={thStyle}>{f.label}</th>)}
+                            <th style={{ ...thStyle, position:"sticky", right:0, background:"#070a0f", zIndex:2 }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {typeElements.map((el, i) => {
+                            const isEditing = editingEl === el.id;
+                            const rowBg     = i%2===0 ? "#0a0d14" : "#0d1117";
+                            return (
+                              <tr key={el.id} style={{ background: rowBg }}>
+                                <td style={{ ...tdStyle, color:"#4b5563", width:28 }}>{i}</td>
+                                {/* Nombre */}
+                                <td style={{ ...tdStyle, minWidth:130 }}>
+                                  {isEditing
+                                    ? <input value={el.nombre} onChange={e=>handleElNombreChange(el.id,e.target.value)} style={{ ...inputStyle, width:120, fontSize:11 }} />
+                                    : <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                        <span style={{ width:8, height:8, borderRadius:"50%", background:def.color, flexShrink:0 }} />
+                                        {el.nombre}
+                                      </span>
+                                  }
+                                </td>
+                                {/* Coords */}
+                                <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{el.lat.toFixed(5)}</td>
+                                <td style={{ ...tdStyle, color:"#4b5563", fontSize:10 }}>{el.lng.toFixed(5)}</td>
+                                {/* Type-specific fields */}
+                                {def.fields.map(f => {
+                                  const val = el.attrs?.[f.key] ?? "";
+                                  if (!isEditing) return (
+                                    <td key={f.key} style={{ ...tdStyle, maxWidth:180, overflow:"hidden", textOverflow:"ellipsis" }}>
+                                      {val === "" ? <span style={{ color:"#2d3550" }}>—</span> : <span style={{ color:"#94a3b8" }}>{String(val)}</span>}
+                                    </td>
+                                  );
+                                  if (f.type === "select") return (
+                                    <td key={f.key} style={tdStyle}>
+                                      <select value={val} onChange={e=>handleElAttrChange(el.id,f.key,e.target.value)} style={{ ...inputStyle, width:140, fontSize:11 }}>
+                                        <option value="">--</option>
+                                        {f.options.map(o=><option key={o}>{o}</option>)}
+                                      </select>
+                                    </td>
+                                  );
+                                  if (f.type === "textarea") return (
+                                    <td key={f.key} style={tdStyle}>
+                                      <textarea value={val} onChange={e=>handleElAttrChange(el.id,f.key,e.target.value)} style={{ ...inputStyle, width:160, fontSize:11, minHeight:36, resize:"vertical" }} />
+                                    </td>
+                                  );
+                                  return (
+                                    <td key={f.key} style={tdStyle}>
+                                      <input value={val} onChange={e=>handleElAttrChange(el.id,f.key,e.target.value)} style={{ ...inputStyle, width:120, fontSize:11 }} />
+                                    </td>
+                                  );
+                                })}
+                                {/* Actions sticky right */}
+                                <td style={{ ...tdStyle, position:"sticky", right:0, background:rowBg, zIndex:1 }}>
+                                  <div style={{ display:"flex", gap:4 }}>
+                                    <button onClick={()=>setEditingEl(isEditing?null:el.id)} style={{ ...miniBtn(isEditing?"#059669":"#1d4ed8"), padding:"3px 7px" }}>{isEditing?"✓":"✏️"}</button>
+                                    <button onClick={()=>deleteEl(el.id)} style={{ ...miniBtn("#991b1b"), padding:"3px 7px" }}>🗑️</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                }
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -785,14 +821,20 @@ function App() {
   const [gpsStatus,     setGpsStatus]     = useState("idle");
   const [showGPSModal,  setShowGPSModal]  = useState(false);
   const [showDenied,    setShowDenied]    = useState(false);
-  const [connectMode,   setConnectMode]   = useState(false);
-  const [connectFrom,   setConnectFrom]   = useState(null);
+  const [connectMode,     setConnectMode]     = useState(false);
+  const [connectFrom,     setConnectFrom]     = useState(null);   // element id
+  const [connectWaypoints,setConnectWaypoints]= useState([]);     // [{lat,lng}] intermediate clicks
   const watchRef = useRef(null);
 
   const handleMapClick = useCallback((latlng) => {
-    if (connectMode) return;
+    if (connectMode && connectFrom) {
+      // Add intermediate waypoint (not on an element)
+      setConnectWaypoints(prev => [...prev, { lat: latlng.lat, lng: latlng.lng }]);
+      return;
+    }
+    if (connectMode) return; // waiting for first element click
     setPendingCoords(latlng); setLastCoords(latlng); setAddingType(null);
-  }, [connectMode]);
+  }, [connectMode, connectFrom]);
 
   useEffect(() => {
     if (!navigator.permissions) return;
@@ -860,20 +902,36 @@ function App() {
     setElements(p => [...p, { id:generateId(), type, nombre, lat, lng, attrs, photos:[], timestamp:new Date().toISOString() }]);
   }
 
-  // Connect mode: click A then B → auto-create connection
+  // Connect mode: click element A → click map for waypoints → click element B to finish
   function handleSelectForConnect(id) {
     setSelectedId(id);
     if (!connectFrom) {
       setConnectFrom(id);
+      setConnectWaypoints([]);
     } else if (id !== connectFrom) {
-      const elA       = elements.find(e => e.id === connectFrom);
-      const elB       = elements.find(e => e.id === id);
-      const distancia = haversineMeters(elA.lat, elA.lng, elB.lat, elB.lng);
-      const tipo      = inferConnectionType(elA.type, elB.type);
-      setConnections(prev => [...prev, { id:generateId(), a:connectFrom, b:id, tipo, infraestructura:"existente", distancia, timestamp:new Date().toISOString(), automatica:true }]);
+      const elA  = elements.find(e => e.id === connectFrom);
+      const elB  = elements.find(e => e.id === id);
+      const tipo = inferConnectionType(elA.type, elB.type);
+      // Build full point sequence: A → waypoints → B
+      const pts  = [{ lat:elA.lat, lng:elA.lng }, ...connectWaypoints, { lat:elB.lat, lng:elB.lng }];
+      let distancia = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        distancia += haversineMeters(pts[i].lat, pts[i].lng, pts[i+1].lat, pts[i+1].lng);
+      }
+      setConnections(prev => [...prev, {
+        id: generateId(), a: connectFrom, b: id, tipo,
+        waypoints: connectWaypoints,
+        infraestructura: "existente", distancia,
+        timestamp: new Date().toISOString(), automatica: true
+      }]);
       setConnectFrom(null);
+      setConnectWaypoints([]);
       setConnectMode(false);
     }
+  }
+
+  function cancelConnectMode() {
+    setConnectMode(false); setConnectFrom(null); setConnectWaypoints([]);
   }
 
   function handleExport() {
@@ -917,10 +975,10 @@ function App() {
               📌 Capturar
             </button>
           )}
-          <button onClick={()=>{ if(connectMode){setConnectMode(false);setConnectFrom(null);}else{setConnectMode(true);setPendingCoords(null);setAddingType(null);} }}
+          <button onClick={()=>{ if(connectMode){cancelConnectMode();}else{setConnectMode(true);setPendingCoords(null);setAddingType(null);} }}
             className={connectMode?"line-mode-active":""}
             style={{ background:connectMode?"#78350f":"#1f2937", color:connectMode?"#fbbf24":"#9ca3af", border:`1px solid ${connectMode?"#fbbf24":"#374151"}`, borderRadius:6, padding:"5px 9px", cursor:"pointer", fontSize:11, fontWeight:700 }}>
-            {connectMode?"✕ Conectar":"🔗 Conectar"}
+            {connectMode?"✕ Cancelar":"🔗 Conectar"}
           </button>
           <button onClick={handleGPSButtonClick}
             style={{ background:gpsBg, color:gpsColor, border:`1px solid ${gpsBorder}`, borderRadius:6, padding:"5px 9px", cursor:"pointer", fontSize:11, fontWeight:700, minWidth:72 }}>
@@ -931,8 +989,21 @@ function App() {
 
       {/* Status bars */}
       {connectMode && (
-        <div style={{ background:"#78350f", color:"#fbbf24", fontSize:11, padding:"5px 14px", flexShrink:0 }}>
-          🔗 {!connectFrom ? "Toca el primer elemento en el mapa" : `Desde: ${elements.find(e=>e.id===connectFrom)?.nombre} → toca el segundo elemento`}
+        <div style={{ background:"#78350f", color:"#fbbf24", fontSize:11, padding:"5px 14px", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+          <span>
+            {!connectFrom
+              ? "🔗 Paso 1: toca el primer elemento en el mapa"
+              : connectWaypoints.length === 0
+                ? `🔗 Desde: ${elements.find(e=>e.id===connectFrom)?.nombre} — toca el mapa para puntos intermedios, o toca el elemento destino para terminar`
+                : `🔗 Desde: ${elements.find(e=>e.id===connectFrom)?.nombre} — ${connectWaypoints.length} punto(s) intermedio(s) — toca el elemento destino para terminar`
+            }
+          </span>
+          {connectFrom && connectWaypoints.length > 0 && (
+            <button onClick={()=>setConnectWaypoints(prev=>prev.slice(0,-1))}
+              style={{ background:"#92400e", color:"#fcd34d", border:"1px solid #fbbf24", borderRadius:5, padding:"3px 8px", cursor:"pointer", fontSize:11, fontWeight:700, flexShrink:0 }}>
+              ↩ Deshacer punto
+            </button>
+          )}
         </div>
       )}
       {gpsStatus==="requesting" && <div style={{ background:"#1a2e05", color:"#a3e635", fontSize:11, padding:"4px 14px", flexShrink:0 }}>🛰️ Solicitando permiso GPS…</div>}
@@ -957,6 +1028,7 @@ function App() {
               onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
               visibleTypes={visibleTypes} userPos={userPos} pendingCoords={pendingCoords}
               connectMode={connectMode} connectFromId={connectFrom} onSelectForConnect={handleSelectForConnect}
+              connectWaypoints={connectWaypoints}
             />
           </div>
         )}
@@ -1136,6 +1208,7 @@ function App() {
               onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
               visibleTypes={visibleTypes} userPos={userPos} pendingCoords={pendingCoords}
               connectMode={connectMode} connectFromId={connectFrom} onSelectForConnect={handleSelectForConnect}
+              connectWaypoints={connectWaypoints}
             />
           </div>
         )}
