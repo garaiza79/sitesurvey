@@ -821,21 +821,27 @@ function App() {
   const [gpsStatus,     setGpsStatus]     = useState("idle");
   const [showGPSModal,  setShowGPSModal]  = useState(false);
   const [showDenied,    setShowDenied]    = useState(false);
-  const [connectMode,     setConnectMode]     = useState(false);
-  const [connectFrom,     setConnectFrom]     = useState(null);   // element id
-  const [connectWaypoints,setConnectWaypoints]= useState([]);     // [{lat,lng}] intermediate clicks
+  const [connectMode,      setConnectMode]      = useState(false);
+  const [connectFrom,      setConnectFrom]      = useState(null);
+  const [connectWaypoints, setConnectWaypoints] = useState([]);
+  const connectFromRef      = useRef(null);
+  const connectWaypointsRef = useRef([]);
   const watchRef = useRef(null);
+
+  // Keep refs in sync with state
+  useEffect(() => { connectFromRef.current      = connectFrom;      }, [connectFrom]);
+  useEffect(() => { connectWaypointsRef.current = connectWaypoints; }, [connectWaypoints]);
 
   const handleMapClickRef = useRef(null);
 
   const handleMapClick = useCallback((latlng) => {
-    if (connectMode && connectFrom) {
+    if (connectMode && connectFromRef.current) {
       setConnectWaypoints(prev => [...prev, { lat: latlng.lat, lng: latlng.lng }]);
       return;
     }
     if (connectMode) return;
     setPendingCoords(latlng); setLastCoords(latlng); setAddingType(null);
-  }, [connectMode, connectFrom]);
+  }, [connectMode]);
 
   // Keep the ref always pointing to the latest handler
   useEffect(() => { handleMapClickRef.current = handleMapClick; }, [handleMapClick]);
@@ -909,22 +915,25 @@ function App() {
   // Connect mode: click element A → click map for waypoints → click element B to finish
   function handleSelectForConnect(id) {
     setSelectedId(id);
-    if (!connectFrom) {
+    const currentFrom      = connectFromRef.current;
+    const currentWaypoints = connectWaypointsRef.current;
+
+    if (!currentFrom) {
       setConnectFrom(id);
       setConnectWaypoints([]);
-    } else if (id !== connectFrom) {
-      const elA  = elements.find(e => e.id === connectFrom);
+    } else if (id !== currentFrom) {
+      const elA  = elements.find(e => e.id === currentFrom);
       const elB  = elements.find(e => e.id === id);
       const tipo = inferConnectionType(elA.type, elB.type);
       // Build full point sequence: A → waypoints → B
-      const pts  = [{ lat:elA.lat, lng:elA.lng }, ...connectWaypoints, { lat:elB.lat, lng:elB.lng }];
+      const pts  = [{ lat:elA.lat, lng:elA.lng }, ...currentWaypoints, { lat:elB.lat, lng:elB.lng }];
       let distancia = 0;
       for (let i = 0; i < pts.length - 1; i++) {
         distancia += haversineMeters(pts[i].lat, pts[i].lng, pts[i+1].lat, pts[i+1].lng);
       }
       setConnections(prev => [...prev, {
-        id: generateId(), a: connectFrom, b: id, tipo,
-        waypoints: connectWaypoints,
+        id: generateId(), a: currentFrom, b: id, tipo,
+        waypoints: [...currentWaypoints],
         infraestructura: "existente", distancia,
         timestamp: new Date().toISOString(), automatica: true
       }]);
@@ -935,7 +944,11 @@ function App() {
   }
 
   function cancelConnectMode() {
-    setConnectMode(false); setConnectFrom(null); setConnectWaypoints([]);
+    setConnectMode(false);
+    setConnectFrom(null);
+    setConnectWaypoints([]);
+    connectFromRef.current = null;
+    connectWaypointsRef.current = [];
   }
 
   function handleExport() {
