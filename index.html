@@ -124,12 +124,74 @@ function toGeoJSON(elements) {
     }))
   };
 }
-function toKML(elements) {
-  const placemarks = elements.map(el => {
-    const ext = Object.entries(el.attrs||{}).map(([k,v]) => `<Data name="${k}"><value>${v}</value></Data>`).join("");
-    return `<Placemark><name>${el.nombre}</name><description>${el.attrs?.notas||""}</description><ExtendedData>${ext}</ExtendedData><Point><coordinates>${el.lng},${el.lat},0</coordinates></Point></Placemark>`;
+function toKML(project, elements, connections) {
+  const esc = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+  // ── Element folders grouped by type
+  const elementFolders = Object.entries(ELEMENT_TYPES).map(([typeKey, def]) => {
+    const typeEls = elements.filter(e => e.type === typeKey);
+    if (!typeEls.length) return "";
+    const placemarks = typeEls.map(el => {
+      const extData = Object.entries(el.attrs||{})
+        .map(([k,v]) => "        <Data name=\""+esc(k)+"\"><value>"+esc(v)+"</value></Data>").join("\n");
+      return [
+        "      <Placemark>",
+        "        <n>"+esc(el.nombre)+"</n>",
+        "        <description>"+esc((el.attrs&&el.attrs.notas)||"")+"</description>",
+        "        <TimeStamp><when>"+el.timestamp+"</when></TimeStamp>",
+        "        <ExtendedData>",extData,"        </ExtendedData>",
+        "        <Point><coordinates>"+el.lng+","+el.lat+",0</coordinates></Point>",
+        "      </Placemark>"
+      ].join("\n");
+    }).join("\n");
+    return ["    <Folder>","      <n>"+esc(def.label)+"</n>","      <description>"+typeEls.length+" elemento(s)</description>",placemarks,"    </Folder>"].join("\n");
+  }).filter(Boolean).join("\n");
+
+  // ── Connection folders grouped by tipo
+  const connTypes = [...new Set(connections.map(c => c.tipo))];
+  const connColors = { "Aerial Route":"ffF97316", "ADSS":"ffA78BFA", "Ducto":"ff34D399" };
+
+  const connFolders = connTypes.map(tipo => {
+    const tipoConns = connections.filter(c => c.tipo === tipo);
+    const placemarks = tipoConns.map(c => {
+      const elA = elements.find(e => e.id === c.a);
+      const elB = elements.find(e => e.id === c.b);
+      if (!elA || !elB) return "";
+      const pts = [[elA.lng,elA.lat], ...(c.waypoints||[]).map(w=>[w.lng,w.lat]), [elB.lng,elB.lat]];
+      const coordStr = pts.map(p=>p[0]+","+p[1]+",0").join(" ");
+      const kmlColor = connColors[tipo]||"ff60a5fa";
+      const wpNote   = c.waypoints&&c.waypoints.length ? " | Puntos intermedios: "+c.waypoints.length : "";
+      const dist     = c.distancia ? c.distancia.toFixed(2) : "";
+      return [
+        "      <Placemark>",
+        "        <n>"+esc(elA.nombre)+" \u2192 "+esc(elB.nombre)+"</n>",
+        "        <description>Tipo: "+esc(tipo)+" | Infra: "+esc(c.infraestructura||"")+" | Distancia: "+dist+" m"+wpNote+"</description>",
+        "        <TimeStamp><when>"+c.timestamp+"</when></TimeStamp>",
+        "        <Style><LineStyle><color>"+kmlColor+"</color><width>2</width></LineStyle></Style>",
+        "        <LineString><tessellate>1</tessellate><coordinates>"+coordStr+"</coordinates></LineString>",
+        "      </Placemark>"
+      ].join("\n");
+    }).filter(Boolean).join("\n");
+    return ["    <Folder>","      <n>"+esc(tipo)+"</n>","      <description>"+tipoConns.length+" conexi\u00f3n(es)</description>",placemarks,"    </Folder>"].join("\n");
   }).join("\n");
-  return `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Site Survey - Flō Networks</name>${placemarks}</Document></kml>`;
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<kml xmlns="http://www.opengis.net/kml/2.2">',
+    '  <Document>',
+    '    <n>'+esc(project)+'</n>',
+    '    <description>Fl\u014d Site Survey \u2014 '+elements.length+' elementos, '+connections.length+' conexiones</description>',
+    '    <Folder>',
+    '      <n>Elementos</n>',
+    elementFolders,
+    '    </Folder>',
+    '    <Folder>',
+    '      <n>Conexiones</n>',
+    connFolders,
+    '    </Folder>',
+    '  </Document>',
+    '</kml>'
+  ].join("\n");
 }
 function toCSV(elements, connections) {
   if (!elements.length) return "";
@@ -968,7 +1030,7 @@ function App() {
   function handleExport() {
     const ts = new Date().toISOString().slice(0,10);
     if (exportFmt==="GeoJSON") downloadFile(JSON.stringify(toGeoJSON(elements),null,2), `${project}_${ts}.geojson`, "application/geo+json");
-    if (exportFmt==="KML")     downloadFile(toKML(elements), `${project}_${ts}.kml`, "application/vnd.google-earth.kml+xml");
+    if (exportFmt==="KML")     downloadFile(toKML(project, elements, connections), `${project}_${ts}.kml`, "application/vnd.google-earth.kml+xml");
     if (exportFmt==="CSV")     downloadFile(toCSV(elements,connections), `${project}_${ts}.csv`, "text/csv");
   }
 
