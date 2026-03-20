@@ -136,7 +136,7 @@ function toKML(project, elements, connections) {
         .map(([k,v]) => "        <Data name=\""+esc(k)+"\"><value>"+esc(v)+"</value></Data>").join("\n");
       return [
         "      <Placemark>",
-        "        <n>"+esc(el.nombre)+"</n>",
+        "        <name>"+esc(el.nombre)+"</name>",
         "        <description>"+esc((el.attrs&&el.attrs.notas)||"")+"</description>",
         "        <TimeStamp><when>"+el.timestamp+"</when></TimeStamp>",
         "        <ExtendedData>",extData,"        </ExtendedData>",
@@ -144,7 +144,7 @@ function toKML(project, elements, connections) {
         "      </Placemark>"
       ].join("\n");
     }).join("\n");
-    return ["    <Folder>","      <n>"+esc(def.label)+"</n>","      <description>"+typeEls.length+" elemento(s)</description>",placemarks,"    </Folder>"].join("\n");
+    return ["    <Folder>","      <name>"+esc(def.label)+"</name>","      <description>"+typeEls.length+" elemento(s)</description>",placemarks,"    </Folder>"].join("\n");
   }).filter(Boolean).join("\n");
 
   // ── Connection folders grouped by tipo
@@ -164,7 +164,7 @@ function toKML(project, elements, connections) {
       const dist     = c.distancia ? c.distancia.toFixed(2) : "";
       return [
         "      <Placemark>",
-        "        <n>"+esc(elA.nombre)+" \u2192 "+esc(elB.nombre)+"</n>",
+        "        <name>"+esc(elA.nombre)+" \u2192 "+esc(elB.nombre)+"</name>",
         "        <description>Tipo: "+esc(tipo)+" | Infra: "+esc(c.infraestructura||"")+" | Distancia: "+dist+" m"+wpNote+"</description>",
         "        <TimeStamp><when>"+c.timestamp+"</when></TimeStamp>",
         "        <Style><LineStyle><color>"+kmlColor+"</color><width>2</width></LineStyle></Style>",
@@ -172,21 +172,21 @@ function toKML(project, elements, connections) {
         "      </Placemark>"
       ].join("\n");
     }).filter(Boolean).join("\n");
-    return ["    <Folder>","      <n>"+esc(tipo)+"</n>","      <description>"+tipoConns.length+" conexi\u00f3n(es)</description>",placemarks,"    </Folder>"].join("\n");
+    return ["    <Folder>","      <name>"+esc(tipo)+"</name>","      <description>"+tipoConns.length+" conexi\u00f3n(es)</description>",placemarks,"    </Folder>"].join("\n");
   }).join("\n");
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<kml xmlns="http://www.opengis.net/kml/2.2">',
     '  <Document>',
-    '    <n>'+esc(project)+'</n>',
+    '    <name>'+esc(project)+'</name>',
     '    <description>Fl\u014d Site Survey \u2014 '+elements.length+' elementos, '+connections.length+' conexiones</description>',
     '    <Folder>',
-    '      <n>Elementos</n>',
+    '      <name>Elementos</name>',
     elementFolders,
     '    </Folder>',
     '    <Folder>',
-    '      <n>Conexiones</n>',
+    '      <name>Conexiones</name>',
     connFolders,
     '    </Folder>',
     '  </Document>',
@@ -431,9 +431,10 @@ function AIPanel({ onAddElement, lastCoords }) {
 }
 
 // ─── Map View ────────────────────────────────────────────────────────────────
-function MapView({ elements, connections, onMapClickRef, selectedId, onSelectElement, visibleTypes, userPos, pendingCoords, connectMode, connectFromId, onSelectForConnect, connectWaypoints }) {
+function MapView({ elements, connections, onMapClickRef, selectedId, onSelectElement, visibleTypes, userPos, pendingCoords, connectMode, connectFromId, onSelectForConnect, connectWaypoints, mapLayer }) {
   const mapRef     = useRef(null);
   const leafletMap = useRef(null);
+  const tileRef    = useRef(null);   // current tile layer
   const markersRef = useRef({});
   const linesRef   = useRef([]);
   const wpMarkersRef = useRef([]);
@@ -451,15 +452,30 @@ function MapView({ elements, connections, onMapClickRef, selectedId, onSelectEle
   const connectModeRef = useRef(connectMode);
   useEffect(() => { connectModeRef.current = connectMode; }, [connectMode]);
 
+  const TILE_LAYERS = {
+    osm:      { url:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",       attr:"© OpenStreetMap" },
+    satellite:{ url:"https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",      attr:"© Google" },
+    hybrid:   { url:"https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",      attr:"© Google" },
+    esri:     { url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr:"© Esri" },
+  };
+
   useEffect(() => {
     if (leafletMap.current) return;
     const map = L.map(mapRef.current, { zoomControl: true }).setView([28.6353, -106.0889], 14);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors", maxZoom: 19
-    }).addTo(map);
+    const cfg = TILE_LAYERS["satellite"];
+    tileRef.current = L.tileLayer(cfg.url, { attribution: cfg.attr, maxZoom:21 }).addTo(map);
     map.on("click", e => onMapClickRef.current(e.latlng));
     leafletMap.current = map;
   }, []);
+
+  // Swap tile layer when mapLayer prop changes
+  useEffect(() => {
+    if (!leafletMap.current || !mapLayer) return;
+    const cfg = TILE_LAYERS[mapLayer];
+    if (!cfg) return;
+    if (tileRef.current) { tileRef.current.remove(); }
+    tileRef.current = L.tileLayer(cfg.url, { attribution: cfg.attr, maxZoom:21 }).addTo(leafletMap.current);
+  }, [mapLayer]);
 
   // GPS dot
   useEffect(() => {
@@ -892,6 +908,7 @@ function App() {
   const [gpsStatus,     setGpsStatus]     = useState("idle");
   const [showGPSModal,  setShowGPSModal]  = useState(false);
   const [showDenied,    setShowDenied]    = useState(false);
+  const [mapLayer,         setMapLayer]         = useState("satellite");
   const [connectMode,      setConnectMode]      = useState(false);
   const [connectFrom,      setConnectFrom]      = useState(null);
   const [connectWaypoints, setConnectWaypoints] = useState([]);
@@ -1073,7 +1090,13 @@ function App() {
             style={{ background:connectMode?"#78350f":"#1f2937", color:connectMode?"#fbbf24":"#9ca3af", border:`1px solid ${connectMode?"#fbbf24":"#374151"}`, borderRadius:6, padding:"5px 9px", cursor:"pointer", fontSize:11, fontWeight:700 }}>
             {connectMode?"✕ Cancelar":"🔗 Conectar"}
           </button>
-          <button onClick={handleGPSButtonClick}
+          <select value={mapLayer} onChange={e => setMapLayer(e.target.value)}
+            style={{ background:"#1f2937", color:"#9ca3af", border:"1px solid #374151", borderRadius:6, padding:"5px 7px", cursor:"pointer", fontSize:11, fontWeight:600 }}>
+            <option value="satellite">🛰️ Satélite</option>
+            <option value="hybrid">🛰️ Híbrido</option>
+            <option value="esri">🛰️ Esri</option>
+            <option value="osm">🗺️ Mapa</option>
+          </select>
             style={{ background:gpsBg, color:gpsColor, border:`1px solid ${gpsBorder}`, borderRadius:6, padding:"5px 9px", cursor:"pointer", fontSize:11, fontWeight:700, minWidth:72 }}>
             {gpsLabel}
           </button>
@@ -1121,7 +1144,7 @@ function App() {
               onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
               visibleTypes={visibleTypes} userPos={userPos} pendingCoords={pendingCoords}
               connectMode={connectMode} connectFromId={connectFrom} onSelectForConnect={handleSelectForConnect}
-              connectWaypoints={connectWaypoints}
+              connectWaypoints={connectWaypoints} mapLayer={mapLayer}
             />
           </div>
         )}
@@ -1301,7 +1324,7 @@ function App() {
               onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
               visibleTypes={visibleTypes} userPos={userPos} pendingCoords={pendingCoords}
               connectMode={connectMode} connectFromId={connectFrom} onSelectForConnect={handleSelectForConnect}
-              connectWaypoints={connectWaypoints}
+              connectWaypoints={connectWaypoints} mapLayer={mapLayer}
             />
           </div>
         )}
