@@ -369,7 +369,7 @@ function AIPanel({ onAddElement, lastCoords }) {
 }
 
 // ─── Map View ────────────────────────────────────────────────────────────────
-function MapView({ elements, connections, onMapClick, selectedId, onSelectElement, visibleTypes, userPos, pendingCoords, connectMode, connectFromId, onSelectForConnect, connectWaypoints }) {
+function MapView({ elements, connections, onMapClickRef, selectedId, onSelectElement, visibleTypes, userPos, pendingCoords, connectMode, connectFromId, onSelectForConnect, connectWaypoints }) {
   const mapRef     = useRef(null);
   const leafletMap = useRef(null);
   const markersRef = useRef({});
@@ -386,7 +386,7 @@ function MapView({ elements, connections, onMapClick, selectedId, onSelectElemen
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap contributors", maxZoom: 19
     }).addTo(map);
-    map.on("click", e => onMapClick(e.latlng));
+    map.on("click", e => onMapClickRef.current(e.latlng));
     leafletMap.current = map;
   }, []);
 
@@ -826,15 +826,19 @@ function App() {
   const [connectWaypoints,setConnectWaypoints]= useState([]);     // [{lat,lng}] intermediate clicks
   const watchRef = useRef(null);
 
+  const handleMapClickRef = useRef(null);
+
   const handleMapClick = useCallback((latlng) => {
     if (connectMode && connectFrom) {
-      // Add intermediate waypoint (not on an element)
       setConnectWaypoints(prev => [...prev, { lat: latlng.lat, lng: latlng.lng }]);
       return;
     }
-    if (connectMode) return; // waiting for first element click
+    if (connectMode) return;
     setPendingCoords(latlng); setLastCoords(latlng); setAddingType(null);
   }, [connectMode, connectFrom]);
+
+  // Keep the ref always pointing to the latest handler
+  useEffect(() => { handleMapClickRef.current = handleMapClick; }, [handleMapClick]);
 
   useEffect(() => {
     if (!navigator.permissions) return;
@@ -1023,7 +1027,7 @@ function App() {
           <div style={{ flex:"0 0 50%", position:"relative", borderBottom:"2px solid #1f2937" }}>
             <MapView
               elements={elements} connections={connections}
-              onMapClick={handleMapClick}
+              onMapClickRef={handleMapClickRef}
               selectedId={selectedId}
               onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
               visibleTypes={visibleTypes} userPos={userPos} pendingCoords={pendingCoords}
@@ -1203,7 +1207,7 @@ function App() {
           <div style={{ flex:1, position:"relative" }}>
             <MapView
               elements={elements} connections={connections}
-              onMapClick={handleMapClick}
+              onMapClickRef={handleMapClickRef}
               selectedId={selectedId}
               onSelectElement={id=>{setSelectedId(id);setEditingId(null);}}
               visibleTypes={visibleTypes} userPos={userPos} pendingCoords={pendingCoords}
