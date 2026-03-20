@@ -374,11 +374,20 @@ function MapView({ elements, connections, onMapClickRef, selectedId, onSelectEle
   const leafletMap = useRef(null);
   const markersRef = useRef({});
   const linesRef   = useRef([]);
-  const wpMarkersRef = useRef([]);   // waypoint dot markers
-  const previewRef   = useRef(null); // live dashed preview line
+  const wpMarkersRef = useRef([]);
+  const previewRef   = useRef(null);
   const userMarker = useRef(null);
   const pinMarker  = useRef(null);
   const hasPanned  = useRef(false);
+
+  // Keep a ref to onSelectForConnect so Leaflet marker clicks always call the latest version
+  const onSelectForConnectRef = useRef(onSelectForConnect);
+  const onSelectElementRef    = useRef(onSelectElement);
+  useEffect(() => { onSelectForConnectRef.current = onSelectForConnect; }, [onSelectForConnect]);
+  useEffect(() => { onSelectElementRef.current    = onSelectElement;    }, [onSelectElement]);
+  // Also keep connectMode in a ref for the same reason
+  const connectModeRef = useRef(connectMode);
+  useEffect(() => { connectModeRef.current = connectMode; }, [connectMode]);
 
   useEffect(() => {
     if (leafletMap.current) return;
@@ -506,7 +515,7 @@ function MapView({ elements, connections, onMapClickRef, selectedId, onSelectEle
         .bindPopup(popup, { offset:[0,-size/2] });
       m.on("click", e => {
         L.DomEvent.stopPropagation(e);
-        connectMode ? onSelectForConnect(el.id) : onSelectElement(el.id);
+        connectModeRef.current ? onSelectForConnectRef.current(el.id) : onSelectElementRef.current(el.id);
       });
       markersRef.current[el.id] = m;
     });
@@ -828,7 +837,7 @@ function App() {
   const connectWaypointsRef = useRef([]);
   const watchRef = useRef(null);
 
-  // Keep refs in sync with state
+  // Keep refs always in sync with latest state
   useEffect(() => { connectFromRef.current      = connectFrom;      }, [connectFrom]);
   useEffect(() => { connectWaypointsRef.current = connectWaypoints; }, [connectWaypoints]);
 
@@ -922,21 +931,26 @@ function App() {
       setConnectFrom(id);
       setConnectWaypoints([]);
     } else if (id !== currentFrom) {
-      const elA  = elements.find(e => e.id === currentFrom);
-      const elB  = elements.find(e => e.id === id);
-      const tipo = inferConnectionType(elA.type, elB.type);
-      // Build full point sequence: A → waypoints → B
-      const pts  = [{ lat:elA.lat, lng:elA.lng }, ...currentWaypoints, { lat:elB.lat, lng:elB.lng }];
-      let distancia = 0;
-      for (let i = 0; i < pts.length - 1; i++) {
-        distancia += haversineMeters(pts[i].lat, pts[i].lng, pts[i+1].lat, pts[i+1].lng);
-      }
-      setConnections(prev => [...prev, {
-        id: generateId(), a: currentFrom, b: id, tipo,
-        waypoints: [...currentWaypoints],
-        infraestructura: "existente", distancia,
-        timestamp: new Date().toISOString(), automatica: true
-      }]);
+      // Use setElements functional form to read latest elements
+      setElements(currentElements => {
+        const elA  = currentElements.find(e => e.id === currentFrom);
+        const elB  = currentElements.find(e => e.id === id);
+        if (!elA || !elB) return currentElements;
+        const tipo = inferConnectionType(elA.type, elB.type);
+        const wps  = [...currentWaypoints];
+        const pts  = [{ lat:elA.lat, lng:elA.lng }, ...wps, { lat:elB.lat, lng:elB.lng }];
+        let distancia = 0;
+        for (let i = 0; i < pts.length - 1; i++) {
+          distancia += haversineMeters(pts[i].lat, pts[i].lng, pts[i+1].lat, pts[i+1].lng);
+        }
+        setConnections(prev => [...prev, {
+          id: generateId(), a: currentFrom, b: id, tipo,
+          waypoints: wps,
+          infraestructura: "existente", distancia,
+          timestamp: new Date().toISOString(), automatica: true
+        }]);
+        return currentElements; // no change to elements
+      });
       setConnectFrom(null);
       setConnectWaypoints([]);
       setConnectMode(false);
